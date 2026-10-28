@@ -1438,7 +1438,7 @@ public partial class TabbedHostWindow : Window
         }
     }
 
-    private void MenuItem_JumpMapPreset_Click(object? sender, RoutedEventArgs e)
+    private async void MenuItem_JumpMapPreset_Click(object? sender, RoutedEventArgs e)
     {
         if (_jumpMapPresets.Count == 0)
         {
@@ -1446,13 +1446,43 @@ public partial class TabbedHostWindow : Window
             return;
         }
 
-        string choices = string.Join(Environment.NewLine, _jumpMapPresets.Select((item, index) => $"{index + 1}. {item.Name} — {item.DisplayName}"));
-        InputDialogViewModel vm = new("Jump to Map Preset", $"Enter a preset number:{Environment.NewLine}{choices}", "e.g., 1", false);
-        vm.DialogTextInput = "1";
-        if (Ioc.Default.GetRequiredService<IDialogService>().ShowDialog(vm) == true
-            && int.TryParse(vm.DialogTextInput, out int index)
-            && index >= 1 && index <= _jumpMapPresets.Count)
-            JumpArmyToDestination(_jumpMapPresets[index - 1]);
+        Window dialog = new Window
+        {
+            Title = "Jump to Map Preset",
+            Width = 440,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Background = this.Background
+        };
+
+        StackPanel panel = new StackPanel { Spacing = 12, Margin = new Thickness(18) };
+        panel.Children.Add(new TextBlock { Text = "Select a saved map, room and cell preset:", TextWrapping = TextWrapping.Wrap });
+
+        List<ArmyJumpDestination> presets = _jumpMapPresets.ToList();
+        ComboBox presetPicker = new ComboBox
+        {
+            ItemsSource = presets.Select(item => $"{item.Name} — {item.DisplayName}").ToList(),
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        panel.Children.Add(presetPicker);
+
+        StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8 };
+        Button cancelButton = new Button { Content = "Cancel", MinWidth = 84 };
+        Button jumpButton = new Button { Content = "Jump", MinWidth = 84, IsDefault = true };
+        cancelButton.Click += (_, _) => dialog.Close(false);
+        jumpButton.Click += (_, _) => dialog.Close(true);
+        buttons.Children.Add(cancelButton);
+        buttons.Children.Add(jumpButton);
+        panel.Children.Add(buttons);
+        dialog.Content = panel;
+
+        bool? confirmed = await dialog.ShowDialog<bool?>(this);
+        if (confirmed != true || presetPicker.SelectedIndex < 0 || presetPicker.SelectedIndex >= presets.Count)
+            return;
+
+        JumpArmyToDestination(presets[presetPicker.SelectedIndex]);
     }
 
     private async void MenuItem_JumpPlayer_Click(object? sender, RoutedEventArgs e)
