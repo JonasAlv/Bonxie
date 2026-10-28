@@ -452,6 +452,21 @@ public partial class ArmyQueueViewModel : ObservableRecipient
         }
     }
 
+    public void ReorderStep(ArmyQueueStepViewModel? draggedStep, ArmyQueueStepViewModel? targetStep)
+    {
+        if (IsRunning || draggedStep == null || targetStep == null || draggedStep == targetStep)
+            return;
+
+        int oldIndex = Steps.IndexOf(draggedStep);
+        int newIndex = Steps.IndexOf(targetStep);
+        if (oldIndex < 0 || newIndex < 0 || oldIndex == newIndex)
+            return;
+
+        Steps.Move(oldIndex, newIndex);
+        SelectedStep = draggedStep;
+        AutoSave();
+    }
+
     [RelayCommand]
     public void MoveStepDown(ArmyQueueStepViewModel? step)
     {
