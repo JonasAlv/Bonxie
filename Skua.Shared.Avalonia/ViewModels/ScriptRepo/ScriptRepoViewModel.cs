@@ -122,8 +122,6 @@ public partial class ScriptRepoViewModel : BotControlViewModelBase
     [ObservableProperty]
     private string _filterBy = "All";
 
-    public List<string> SortOptions { get; } = new() { "Name", "Date Created" };
-
     // Which part of a script the search looks in (Skua 1.4.5's scopes)
     public List<string> SearchScopes { get; } = new() { "All", "Name", "Tag", "Description", "File" };
 
@@ -145,7 +143,8 @@ public partial class ScriptRepoViewModel : BotControlViewModelBase
     public bool ShowStartButton => !IsManagerMode;
     public IRelayCommand OpenScriptFolderCommand { get; }
 
-    public string SortDirectionText => SortDescending ? "Desc" : "Asc";
+    // The window sorts by name only; the toggle flips the direction
+    public string SortDirectionText => SortDescending ? "Name Z to A" : "Name A to Z";
     public string SortDirectionIcon => SortDescending ? "SortDescending" : "SortAscending";
 
     [RelayCommand]
