@@ -306,7 +306,8 @@ public partial class TabbedHostWindow : Window
             Name = location.Username,
             Map = location.Map,
             Room = location.Room,
-            Cell = string.IsNullOrWhiteSpace(location.Cell) ? "Enter" : location.Cell
+            Cell = string.IsNullOrWhiteSpace(location.Cell) ? "Enter" : location.Cell,
+            Pad = string.IsNullOrWhiteSpace(location.Pad) ? "Spawn" : location.Pad
         });
 
         if (_jumpMapHistory.Count > 15)
@@ -1355,8 +1356,9 @@ public partial class TabbedHostWindow : Window
         public string Map { get; set; } = "";
         public string Room { get; set; } = "";
         public string Cell { get; set; } = "Enter";
+        public string Pad { get; set; } = "Spawn";
 
-        public string DisplayName => $"{Map}{(string.IsNullOrWhiteSpace(Room) ? "" : $"-{Room}")} - {Cell}";
+        public string DisplayName => ${Map}{(string.IsNullOrWhiteSpace(Room) ? "" : $"-{Room}")} - {Cell}, {Pad};
     }
 
     private sealed class ArmyClientLocation
@@ -1447,7 +1449,7 @@ public partial class TabbedHostWindow : Window
         SaveArmyJumpSettings();
         string mapToJoin = string.IsNullOrWhiteSpace(_lastJumpRoom) ? _lastJumpMap : $"{_lastJumpMap}-{_lastJumpRoom}";
         string tempFile = Path.Combine(Path.GetTempPath(), "skua_global_jump.txt");
-        File.WriteAllLines(tempFile, new[] { mapToJoin, _lastJumpCell });
+        File.WriteAllLines(tempFile, new[] { mapToJoin, _lastJumpCell, string.IsNullOrWhiteSpace(destination.Pad) ? "Spawn" : destination.Pad.Trim() });
 
         foreach (var info in _tabs.Values)
             if (info.ChildHwnd != IntPtr.Zero)
@@ -1503,25 +1505,95 @@ public partial class TabbedHostWindow : Window
 
     private void MenuItem_SaveJumpMapPreset_Click(object? sender, RoutedEventArgs e)
     {
-        if (InstancesTabControl.SelectedItem is not TabItem selectedTab
-            || !_tabs.TryGetValue(selectedTab, out TabInfo? selectedInfo)
-            || selectedInfo.Process == null
-            || !_latestClientLocations.TryGetValue(selectedInfo.Process.Id, out ArmyClientLocation? location)
-            || location.UpdatedUtc < DateTime.UtcNow.AddSeconds(-5)
-            || string.IsNullOrWhiteSpace(location.Map))
-        {
-            Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("The selected client has not reported a current map yet. Log in and wait a moment, then try again.", "Save Map Preset");
-            return;
-        }
+        OpenJumpMapPresetEditor(null);
+    }
 
-        InputDialogViewModel vm = new("Save Map Preset", $"Save {location.Map}{(string.IsNullOrWhiteSpace(location.Room) ? "" : $"-{location.Room}")} - {location.Cell} as a preset. Enter a name:", "Preset name", false);
-        if (Ioc.Default.GetRequiredService<IDialogService>().ShowDialog(vm) == true && !string.IsNullOrWhiteSpace(vm.DialogTextInput))
+    private void OpenJumpMapPresetEditor(ArmyJumpDestination? existingPreset)
+    {
+        Window dialog = new Window
         {
-            string name = vm.DialogTextInput.Trim();
-            _jumpMapPresets.RemoveAll(item => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-            _jumpMapPresets.Add(new ArmyJumpDestination { Name = name, Map = location.Map, Room = location.Room, Cell = location.Cell });
+            Title = existingPreset == null ? "Create Map Preset" : "Edit Map Preset",
+            Width = 460,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Background = this.Background
+        };
+
+        StackPanel panel = new StackPanel { Spacing = 10, Margin = new Thickness(18) };
+        TextBox nameInput = new TextBox { Watermark = "Preset name", Text = existingPreset?.Name ?? "" };
+        TextBox mapInput = new TextBox { Watermark = "Map name", Text = existingPreset?.Map ?? "" };
+        TextBox roomInput = new TextBox { Watermark = "Room number (optional)", Text = existingPreset?.Room ?? "" };
+        TextBox cellInput = new TextBox { Watermark = "Cell", Text = existingPreset?.Cell ?? "Enter" };
+        TextBox padInput = new TextBox { Watermark = "Pad", Text = existingPreset?.Pad ?? "Spawn" };
+
+        panel.Children.Add(new TextBlock { Text = "Preset name" });
+        panel.Children.Add(nameInput);
+        panel.Children.Add(new TextBlock { Text = "Map" });
+        panel.Children.Add(mapInput);
+        panel.Children.Add(new TextBlock { Text = "Room number (optional)" });
+        panel.Children.Add(roomInput);
+        panel.Children.Add(new TextBlock { Text = "Cell" });
+        panel.Children.Add(cellInput);
+        panel.Children.Add(new TextBlock { Text = "Pad" });
+        panel.Children.Add(padInput);
+
+        Button saveCurrentButton = new Button { Content = "Use Current Client Location", HorizontalAlignment = HorizontalAlignment.Left };
+        saveCurrentButton.Click += (_, _) =>
+        {
+            if (InstancesTabControl.SelectedItem is not TabItem selectedTab
+                || !_tabs.TryGetValue(selectedTab, out TabInfo? selectedInfo)
+                || selectedInfo.Process == null
+                || !_latestClientLocations.TryGetValue(selectedInfo.Process.Id, out ArmyClientLocation? location)
+                || location.UpdatedUtc < DateTime.UtcNow.AddSeconds(-5)
+                || string.IsNullOrWhiteSpace(location.Map))
+            {
+                Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("The selected client has not reported a current location yet. Log in and wait a moment, then try again.", "Current Location");
+                return;
+            }
+
+            mapInput.Text = location.Map;
+            roomInput.Text = location.Room;
+            cellInput.Text = location.Cell;
+            padInput.Text = location.Pad;
+            if (string.IsNullOrWhiteSpace(nameInput.Text))
+                nameInput.Text = location.Map + (string.IsNullOrWhiteSpace(location.Room) ? "" : "-" + location.Room);
+        };
+        panel.Children.Add(saveCurrentButton);
+
+        StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8 };
+        Button cancelButton = new Button { Content = "Cancel", MinWidth = 84 };
+        Button saveButton = new Button { Content = "Save Preset", MinWidth = 100, IsDefault = true };
+        cancelButton.Click += (_, _) => dialog.Close(false);
+        saveButton.Click += (_, _) =>
+        {
+            string name = nameInput.Text?.Trim() ?? "";
+            string map = mapInput.Text?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(map))
+            {
+                Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("Enter both a preset name and map name.", "Create Map Preset");
+                return;
+            }
+
+            ArmyJumpDestination preset = existingPreset ?? new ArmyJumpDestination();
+            preset.Name = name;
+            preset.Map = map;
+            preset.Room = roomInput.Text?.Trim() ?? "";
+            preset.Cell = string.IsNullOrWhiteSpace(cellInput.Text) ? "Enter" : cellInput.Text.Trim();
+            preset.Pad = string.IsNullOrWhiteSpace(padInput.Text) ? "Spawn" : padInput.Text.Trim();
+
+            _jumpMapPresets.RemoveAll(item => !ReferenceEquals(item, preset) && item.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (existingPreset == null)
+                _jumpMapPresets.Add(preset);
             SaveArmyJumpSettings();
-        }
+            dialog.Close(true);
+        };
+        buttons.Children.Add(cancelButton);
+        buttons.Children.Add(saveButton);
+        panel.Children.Add(buttons);
+        dialog.Content = panel;
+
+        dialog.ShowDialog<bool?>(this);
     }
 
     private async void MenuItem_JumpMapPreset_Click(object? sender, RoutedEventArgs e)
