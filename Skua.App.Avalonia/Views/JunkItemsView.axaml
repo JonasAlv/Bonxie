@@ -6,7 +6,7 @@
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="Skua.App.Avalonia.Views.JunkItemsView"
              x:DataType="vms:JunkItemsViewModel"
-             mc:Ignorable="d" d:DesignHeight="500" d:DesignWidth="550">
+             mc:Ignorable="d" d:DesignHeight="500" d:DesignWidth="700">
   <UserControl.Styles>
     <!-- Rows select through their check box, so the row shows the item's IsSelected, not ListBox selection -->
     <Style Selector="Border.junk-row">
