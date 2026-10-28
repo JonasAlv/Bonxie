@@ -1503,12 +1503,12 @@ public partial class TabbedHostWindow : Window
         JumpArmyToDestination(history[historyPicker.SelectedIndex]);
     }
 
-    private void MenuItem_SaveJumpMapPreset_Click(object? sender, RoutedEventArgs e)
+    private async void MenuItem_SaveJumpMapPreset_Click(object? sender, RoutedEventArgs e)
     {
-        OpenJumpMapPresetEditor(null);
+        await OpenJumpMapPresetEditor(null);
     }
 
-    private void OpenJumpMapPresetEditor(ArmyJumpDestination? existingPreset)
+    private async Task OpenJumpMapPresetEditor(ArmyJumpDestination? existingPreset)
     {
         Window dialog = new Window
         {
@@ -1593,7 +1593,7 @@ public partial class TabbedHostWindow : Window
         panel.Children.Add(buttons);
         dialog.Content = panel;
 
-        dialog.ShowDialog<bool?>(this);
+        await dialog.ShowDialog<bool?>(this);
     }
 
     private async void MenuItem_JumpMapPreset_Click(object? sender, RoutedEventArgs e)
@@ -1696,14 +1696,14 @@ public partial class TabbedHostWindow : Window
             UpdateDestination();
         }
 
-        createButton.Click += (_, _) =>
+        createButton.Click += async (_, _) =>
         {
             dialog.Hide();
-            OpenJumpMapPresetEditor(null);
+            await OpenJumpMapPresetEditor(null);
             dialog.Show();
             RefreshPresets(_jumpMapPresets.Count - 1);
         };
-        editButton.Click += (_, _) =>
+        editButton.Click += async (_, _) =>
         {
             int index = presetList.SelectedIndex;
             if (index < 0 || index >= _jumpMapPresets.Count)
@@ -1711,7 +1711,7 @@ public partial class TabbedHostWindow : Window
 
             ArmyJumpDestination selectedPreset = _jumpMapPresets[index];
             dialog.Hide();
-            OpenJumpMapPresetEditor(selectedPreset);
+            await OpenJumpMapPresetEditor(selectedPreset);
             dialog.Show();
             RefreshPresets(index);
         };
