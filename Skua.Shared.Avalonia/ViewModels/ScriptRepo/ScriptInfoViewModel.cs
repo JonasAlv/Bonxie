@@ -21,7 +21,9 @@ public partial class ScriptInfoViewModel : ObservableObject
         _downloaded = isDownloaded ?? info.CachedDownloaded ?? DownloadedFileExists;
         _localSize = localSize ?? info.CachedLocalSize ?? (Downloaded ? (int)new FileInfo(LocalFile).Length : 0);
         _isPinned = isPinned;
-        
+
+        // Instances are built off the UI thread, so the SHA256 check can run here.
+        _infoOutdated = !IsCustom && Info.Outdated;
     }
 
     public ScriptInfo Info { get; }
@@ -106,7 +108,28 @@ public partial class ScriptInfoViewModel : ObservableObject
     // Update re-downloads a local copy of a repo script; custom scripts aren't in the repo, so it's greyed out for them
     public bool CanUpdate => Downloaded && !IsCustom;
 
-    public bool Outdated => !IsCustom && Downloaded && (_localSize != Info.Size || Info.Outdated);
+    private bool? _infoOutdated;
+
+    partial void OnDownloadedChanged(bool value) => _infoOutdated = null;
+
+    partial void OnLocalSizeChanged(int value) => _infoOutdated = null;
+
+    // Never hashes on the UI thread: a null cache means "not computed yet" and counts as not outdated
+    // until RefreshDownloadStateAsync fills it in off the UI thread.
+    public bool Outdated => !IsCustom && Downloaded && (_localSize != Info.Size || (_infoOutdated ?? false));
+
+    public async Task RefreshDownloadStateAsync(bool downloaded, int localSize)
+    {
+        Info.CachedDownloaded = downloaded;
+        Info.CachedLocalSize = localSize;
+        Downloaded = downloaded;
+        LocalSize = localSize;
+        _infoOutdated = IsCustom ? false : await Task.Run(() => Info.Outdated);
+        OnPropertyChanged(nameof(Outdated));
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(StatusColor));
+        OnPropertyChanged(nameof(StatusBackground));
+    }
 
     public string FormattedSize => Size > 1024 * 1024
         ? $"{Size / (1024.0 * 1024.0):F1} MB"
