@@ -165,24 +165,33 @@
                                         </ListBox.ItemsPanel>
                                         <ListBox.ItemTemplate>
                                             <DataTemplate x:DataType="vm:ArmyQueueStepViewModel">
-                                                <StackPanel Orientation="Horizontal" Spacing="6" Margin="4,2" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
-                                                    <Border CornerRadius="8" Background="{DynamicResource SkuaSurfaceSubtleBrush}" Padding="6,1" VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding Members.Count}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource SkuaMutedTextBrush}" />
-                                                    </Border>
-                                                    <!-- Tab Close X Button -->
-                                                    <Button Classes="skua-button"
-                                                            Height="18"
-                                                            Width="18"
-                                                            Padding="0"
-                                                            CornerRadius="9"
-                                                            VerticalAlignment="Center"
-                                                            ToolTip.Tip="Close Squad"
-                                                            Command="{Binding $parent[UserControl].((vm:ArmyQueueViewModel)DataContext).RemoveStepSpecificCommand}"
-                                                            CommandParameter="{Binding}">
-                                                        <materialIcons:MaterialIcon Kind="Close" Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                    </Button>
-                                                </StackPanel>
+                                                <Border Padding="4,2"
+                                                        Background="Transparent"
+                                                        DragDrop.AllowDrop="True"
+                                                        PointerPressed="OnSquadTabPointerPressed"
+                                                        PointerMoved="OnSquadTabPointerMoved"
+                                                        DragDrop.DragOver="OnSquadTabDragOver"
+                                                        DragDrop.Drop="OnSquadTabDrop">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                                        <materialIcons:MaterialIcon Kind="DragHorizontalVariant" Width="12" Height="12" Foreground="{DynamicResource SkuaMutedTextBrush}" />
+                                                        <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" />
+                                                        <Border CornerRadius="8" Background="{DynamicResource SkuaSurfaceSubtleBrush}" Padding="6,1" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Members.Count}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource SkuaMutedTextBrush}" />
+                                                        </Border>
+                                                        <!-- Tab Close X Button -->
+                                                        <Button Classes="skua-button"
+                                                                Height="18"
+                                                                Width="18"
+                                                                Padding="0"
+                                                                CornerRadius="9"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip.Tip="Close Squad"
+                                                                Command="{Binding $parent[UserControl].((vm:ArmyQueueViewModel)DataContext).RemoveStepSpecificCommand}"
+                                                                CommandParameter="{Binding}">
+                                                            <materialIcons:MaterialIcon Kind="Close" Width="10" Height="10" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Border>
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
