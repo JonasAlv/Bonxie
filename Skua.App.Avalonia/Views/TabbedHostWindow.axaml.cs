@@ -291,7 +291,7 @@ public partial class TabbedHostWindow : Window
     private void RecordClientLocation(int pid, ArmyClientLocation location)
     {
         _latestClientLocations[pid] = location;
-        string signature = $"{location.Map}|{location.Room}|{location.Cell}|{location.Pad}";
+        string signature = $"{location.Map}|{location.Room}";
         if (_lastRecordedLocationByPid.TryGetValue(pid, out string? previousSignature)
             && previousSignature.Equals(signature, StringComparison.OrdinalIgnoreCase))
             return;
@@ -299,9 +299,7 @@ public partial class TabbedHostWindow : Window
         _lastRecordedLocationByPid[pid] = signature;
         _jumpMapHistory.RemoveAll(item =>
             item.Map.Equals(location.Map, StringComparison.OrdinalIgnoreCase)
-            && item.Room.Equals(location.Room, StringComparison.OrdinalIgnoreCase)
-            && item.Cell.Equals(location.Cell, StringComparison.OrdinalIgnoreCase)
-            && item.Name.Equals(location.Username, StringComparison.OrdinalIgnoreCase));
+            && item.Room.Equals(location.Room, StringComparison.OrdinalIgnoreCase));
 
         _jumpMapHistory.Insert(0, new ArmyJumpDestination
         {
@@ -1443,13 +1441,6 @@ public partial class TabbedHostWindow : Window
         _lastJumpMap = destination.Map.Trim();
         _lastJumpRoom = destination.Room.Trim();
         _lastJumpCell = string.IsNullOrWhiteSpace(destination.Cell) ? "Enter" : destination.Cell.Trim();
-
-        _jumpMapHistory.RemoveAll(item => item.Map.Equals(_lastJumpMap, StringComparison.OrdinalIgnoreCase)
-            && item.Room.Equals(_lastJumpRoom, StringComparison.OrdinalIgnoreCase)
-            && item.Cell.Equals(_lastJumpCell, StringComparison.OrdinalIgnoreCase));
-        _jumpMapHistory.Insert(0, new ArmyJumpDestination { Map = _lastJumpMap, Room = _lastJumpRoom, Cell = _lastJumpCell });
-        if (_jumpMapHistory.Count > 15)
-            _jumpMapHistory.RemoveAt(_jumpMapHistory.Count - 1);
 
         SaveArmyJumpSettings();
         string mapToJoin = string.IsNullOrWhiteSpace(_lastJumpRoom) ? _lastJumpMap : $"{_lastJumpMap}-{_lastJumpRoom}";
