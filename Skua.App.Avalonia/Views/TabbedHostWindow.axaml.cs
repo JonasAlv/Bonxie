@@ -1358,7 +1358,7 @@ public partial class TabbedHostWindow : Window
         public string Cell { get; set; } = "Enter";
         public string Pad { get; set; } = "Spawn";
 
-        public string DisplayName => ${Map}{(string.IsNullOrWhiteSpace(Room) ? "" : $"-{Room}")} - {Cell}, {Pad};
+        public string DisplayName => $"{Map}{(string.IsNullOrWhiteSpace(Room) ? "" : $"-{Room}")} - {Cell}, {Pad}";
     }
 
     private sealed class ArmyClientLocation
@@ -1645,17 +1645,11 @@ public partial class TabbedHostWindow : Window
 
     private async void MenuItem_ManageJumpMapPresets_Click(object? sender, RoutedEventArgs e)
     {
-        if (_jumpMapPresets.Count == 0)
-        {
-            Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("No map presets saved yet. Use Save Current Map as Preset to add one.", "Manage Map Presets");
-            return;
-        }
-
         Window dialog = new Window
         {
             Title = "Manage Map Presets",
-            Width = 560,
-            MinHeight = 260,
+            Width = 600,
+            MinHeight = 280,
             SizeToContent = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             CanResize = false,
@@ -1663,12 +1657,12 @@ public partial class TabbedHostWindow : Window
         };
 
         StackPanel panel = new StackPanel { Spacing = 12, Margin = new Thickness(18) };
-        panel.Children.Add(new TextBlock { Text = "Saved presets — select one to view its destination or delete it.", TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = "Create, inspect, edit, or delete saved map presets.", TextWrapping = TextWrapping.Wrap });
 
         ListBox presetList = new ListBox
         {
             ItemsSource = _jumpMapPresets.Select(item => $"{item.Name} — {item.DisplayName}").ToList(),
-            SelectedIndex = 0,
+            SelectedIndex = _jumpMapPresets.Count > 0 ? 0 : -1,
             MinHeight = 100,
             MaxHeight = 320
         };
@@ -1680,7 +1674,7 @@ public partial class TabbedHostWindow : Window
             int index = presetList.SelectedIndex;
             destinationText.Text = index >= 0 && index < _jumpMapPresets.Count
                 ? $"Destination: {_jumpMapPresets[index].DisplayName}"
-                : "Select a preset to view its destination.";
+                : "No preset selected.";
         }
 
         presetList.SelectionChanged += (_, _) => UpdateDestination();
@@ -1688,8 +1682,39 @@ public partial class TabbedHostWindow : Window
         UpdateDestination();
 
         StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8 };
-        Button deleteButton = new Button { Content = "Delete Selected", MinWidth = 120 };
+        Button createButton = new Button { Content = "Create Preset...", MinWidth = 110 };
+        Button editButton = new Button { Content = "Edit Selected...", MinWidth = 110, IsEnabled = _jumpMapPresets.Count > 0 };
+        Button deleteButton = new Button { Content = "Delete Selected", MinWidth = 120, IsEnabled = _jumpMapPresets.Count > 0 };
         Button closeButton = new Button { Content = "Close", MinWidth = 84, IsCancel = true };
+
+        void RefreshPresets(int selectedIndex)
+        {
+            presetList.ItemsSource = _jumpMapPresets.Select(item => $"{item.Name} — {item.DisplayName}").ToList();
+            presetList.SelectedIndex = _jumpMapPresets.Count == 0 ? -1 : Math.Clamp(selectedIndex, 0, _jumpMapPresets.Count - 1);
+            editButton.IsEnabled = _jumpMapPresets.Count > 0;
+            deleteButton.IsEnabled = _jumpMapPresets.Count > 0;
+            UpdateDestination();
+        }
+
+        createButton.Click += (_, _) =>
+        {
+            dialog.Hide();
+            OpenJumpMapPresetEditor(null);
+            dialog.Show();
+            RefreshPresets(_jumpMapPresets.Count - 1);
+        };
+        editButton.Click += (_, _) =>
+        {
+            int index = presetList.SelectedIndex;
+            if (index < 0 || index >= _jumpMapPresets.Count)
+                return;
+
+            ArmyJumpDestination selectedPreset = _jumpMapPresets[index];
+            dialog.Hide();
+            OpenJumpMapPresetEditor(selectedPreset);
+            dialog.Show();
+            RefreshPresets(index);
+        };
         deleteButton.Click += (_, _) =>
         {
             int index = presetList.SelectedIndex;
@@ -1698,17 +1723,11 @@ public partial class TabbedHostWindow : Window
 
             _jumpMapPresets.RemoveAt(index);
             SaveArmyJumpSettings();
-
-            List<string> items = _jumpMapPresets.Select(item => $"{item.Name} — {item.DisplayName}").ToList();
-            presetList.ItemsSource = items;
-            presetList.SelectedIndex = _jumpMapPresets.Count == 0 ? -1 : Math.Min(index, _jumpMapPresets.Count - 1);
-            deleteButton.IsEnabled = _jumpMapPresets.Count > 0;
-            UpdateDestination();
-
-            if (_jumpMapPresets.Count == 0)
-                destinationText.Text = "All presets have been deleted.";
+            RefreshPresets(index);
         };
         closeButton.Click += (_, _) => dialog.Close();
+        buttons.Children.Add(createButton);
+        buttons.Children.Add(editButton);
         buttons.Children.Add(deleteButton);
         buttons.Children.Add(closeButton);
         panel.Children.Add(buttons);
