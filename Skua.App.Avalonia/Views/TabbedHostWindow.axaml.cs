@@ -1299,9 +1299,26 @@ public partial class TabbedHostWindow : Window
     private sealed class ArmyJumpSettings
     {
         public string Map { get; set; } = "";
+        public string Room { get; set; } = "";
         public string Cell { get; set; } = "Enter";
         public string Player { get; set; } = "";
+        public List<ArmyJumpDestination> History { get; set; } = new();
+        public List<ArmyJumpDestination> Presets { get; set; } = new();
     }
+
+    private sealed class ArmyJumpDestination
+    {
+        public string Name { get; set; } = "";
+        public string Map { get; set; } = "";
+        public string Room { get; set; } = "";
+        public string Cell { get; set; } = "Enter";
+
+        public string DisplayName => $"{Map}{(string.IsNullOrWhiteSpace(Room) ? "" : $"-{Room}")} - {Cell}";
+    }
+
+    private List<ArmyJumpDestination> _jumpMapHistory = new();
+    private List<ArmyJumpDestination> _jumpMapPresets = new();
+    private string _lastJumpRoom = "";
 
     private void LoadArmyJumpSettings()
     {
@@ -1313,7 +1330,10 @@ public partial class TabbedHostWindow : Window
             if (settings == null) return;
             _lastJumpMap = settings.Map ?? "";
             _lastJumpCell = settings.Cell ?? "Enter";
+            _lastJumpRoom = settings.Room ?? "";
             _lastJumpPlayer = settings.Player ?? "";
+            _jumpMapHistory = settings.History ?? new List<ArmyJumpDestination>();
+            _jumpMapPresets = settings.Presets ?? new List<ArmyJumpDestination>();
         }
         catch (Exception ex)
         {
@@ -1331,7 +1351,10 @@ public partial class TabbedHostWindow : Window
             {
                 Map = _lastJumpMap,
                 Cell = _lastJumpCell,
-                Player = _lastJumpPlayer
+                Room = _lastJumpRoom,
+                Player = _lastJumpPlayer,
+                History = _jumpMapHistory,
+                Presets = _jumpMapPresets
             }, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch (Exception ex)
@@ -1342,27 +1365,94 @@ public partial class TabbedHostWindow : Window
 
     private void MenuItem_JumpMap_Click(object? sender, RoutedEventArgs e)
     {
-        var vm = new InputDialogViewModel("Jump Army to Map / Cell", "Enter target location (Map,Cell):", "e.g., yulgar-1,Enter", false);
-        vm.DialogTextInput = string.IsNullOrEmpty(_lastJumpCell) ? _lastJumpMap : $"{_lastJumpMap},{_lastJumpCell}";
+        InputDialogViewModel vm = new("Jump Army to Map / Cell", "Enter destination as Map,Room,Cell (room is optional):", "e.g., yulgar,12345,Enter", false);
+        vm.DialogTextInput = $"{_lastJumpMap},{_lastJumpRoom},{_lastJumpCell}";
 
-        if (Ioc.Default.GetRequiredService<IDialogService>().ShowDialog(vm) == true)
+        if (Ioc.Default.GetRequiredService<IDialogService>().ShowDialog(vm) != true)
+            return;
+
+        string[] parts = (vm.DialogTextInput ?? "").Split(',');
+        string targetMap = parts.Length > 0 ? parts[0].Trim() : "";
+        string targetRoom = parts.Length > 2 ? parts[1].Trim() : "";
+        string targetCell = parts.Length > 2 ? parts[2].Trim() : (parts.Length > 1 ? parts[1].Trim() : "Enter");
+
+        if (!string.IsNullOrWhiteSpace(targetMap))
+            JumpArmyToDestination(new ArmyJumpDestination { Map = targetMap, Room = targetRoom, Cell = string.IsNullOrWhiteSpace(targetCell) ? "Enter" : targetCell });
+    }
+
+    private void JumpArmyToDestination(ArmyJumpDestination destination)
+    {
+        _lastJumpMap = destination.Map.Trim();
+        _lastJumpRoom = destination.Room.Trim();
+        _lastJumpCell = string.IsNullOrWhiteSpace(destination.Cell) ? "Enter" : destination.Cell.Trim();
+
+        _jumpMapHistory.RemoveAll(item => item.Map.Equals(_lastJumpMap, StringComparison.OrdinalIgnoreCase)
+            && item.Room.Equals(_lastJumpRoom, StringComparison.OrdinalIgnoreCase)
+            && item.Cell.Equals(_lastJumpCell, StringComparison.OrdinalIgnoreCase));
+        _jumpMapHistory.Insert(0, new ArmyJumpDestination { Map = _lastJumpMap, Room = _lastJumpRoom, Cell = _lastJumpCell });
+        if (_jumpMapHistory.Count > 15)
+            _jumpMapHistory.RemoveAt(_jumpMapHistory.Count - 1);
+
+        SaveArmyJumpSettings();
+        string mapToJoin = string.IsNullOrWhiteSpace(_lastJumpRoom) ? _lastJumpMap : $"{_lastJumpMap}-{_lastJumpRoom}";
+        string tempFile = Path.Combine(Path.GetTempPath(), "skua_global_jump.txt");
+        File.WriteAllLines(tempFile, new[] { mapToJoin, _lastJumpCell });
+
+        foreach (var info in _tabs.Values)
+            if (info.ChildHwnd != IntPtr.Zero)
+                PostMessage(info.ChildHwnd, WM_SKUA_JUMP_MAP, IntPtr.Zero, IntPtr.Zero);
+    }
+
+    private void MenuItem_JumpMapHistory_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_jumpMapHistory.Count == 0)
         {
-            string[] parts = (vm.DialogTextInput ?? "").Split(',');
-            string targetMap = parts.Length > 0 ? parts[0].Trim() : "";
-            string targetCell = parts.Length > 1 ? parts[1].Trim() : "Enter";
-            if (!string.IsNullOrWhiteSpace(targetMap))
-            {
-                _lastJumpMap = targetMap;
-                _lastJumpCell = string.IsNullOrWhiteSpace(targetCell) ? "Enter" : targetCell;
-                SaveArmyJumpSettings();
-                string tempFile = Path.Combine(Path.GetTempPath(), "skua_global_jump.txt");
-                File.WriteAllLines(tempFile, new[] { _lastJumpMap, _lastJumpCell });
-
-                foreach (var info in _tabs.Values)
-                    if (info.ChildHwnd != IntPtr.Zero)
-                        PostMessage(info.ChildHwnd, WM_SKUA_JUMP_MAP, IntPtr.Zero, IntPtr.Zero);
-            }
+            Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("No recent map destinations yet.", "Jump Map History");
+            return;
         }
+
+        string choices = string.Join(Environment.NewLine, _jumpMapHistory.Select((item, index) => $"{index + 1}. {item.DisplayName}"));
+        InputDialogViewModel vm = new("Jump to Recent Destination", $"Enter a history number:{Environment.NewLine}{choices}", "e.g., 1", false);
+        vm.DialogTextInput = "1";
+        if (Ioc.Default.GetRequiredService<IDialogService>().ShowDialog(vm) == true
+            && int.TryParse(vm.DialogTextInput, out int index)
+            && index >= 1 && index <= _jumpMapHistory.Count)
+            JumpArmyToDestination(_jumpMapHistory[index - 1]);
+    }
+
+    private void MenuItem_SaveJumpMapPreset_Click(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_lastJumpMap))
+        {
+            Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("Enter and jump to a destination first, then save it as a preset.", "Save Map Preset");
+            return;
+        }
+
+        InputDialogViewModel vm = new("Save Map Preset", "Enter a name for the current map, room and cell:", "Preset name", false);
+        if (Ioc.Default.GetRequiredService<IDialogService>().ShowDialog(vm) == true && !string.IsNullOrWhiteSpace(vm.DialogTextInput))
+        {
+            string name = vm.DialogTextInput.Trim();
+            _jumpMapPresets.RemoveAll(item => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            _jumpMapPresets.Add(new ArmyJumpDestination { Name = name, Map = _lastJumpMap, Room = _lastJumpRoom, Cell = _lastJumpCell });
+            SaveArmyJumpSettings();
+        }
+    }
+
+    private void MenuItem_JumpMapPreset_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_jumpMapPresets.Count == 0)
+        {
+            Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("No map presets saved yet. Use Save Current Map as Preset to add one.", "Map Presets");
+            return;
+        }
+
+        string choices = string.Join(Environment.NewLine, _jumpMapPresets.Select((item, index) => $"{index + 1}. {item.Name} — {item.DisplayName}"));
+        InputDialogViewModel vm = new("Jump to Map Preset", $"Enter a preset number:{Environment.NewLine}{choices}", "e.g., 1", false);
+        vm.DialogTextInput = "1";
+        if (Ioc.Default.GetRequiredService<IDialogService>().ShowDialog(vm) == true
+            && int.TryParse(vm.DialogTextInput, out int index)
+            && index >= 1 && index <= _jumpMapPresets.Count)
+            JumpArmyToDestination(_jumpMapPresets[index - 1]);
     }
 
     private async void MenuItem_JumpPlayer_Click(object? sender, RoutedEventArgs e)
