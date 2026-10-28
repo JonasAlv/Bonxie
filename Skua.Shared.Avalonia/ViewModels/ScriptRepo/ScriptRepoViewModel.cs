@@ -124,6 +124,14 @@ public partial class ScriptRepoViewModel : BotControlViewModelBase
 
     public List<string> SortOptions { get; } = new() { "Name", "Date Created" };
 
+    // Which part of a script the search looks in (Skua 1.4.5's scopes)
+    public List<string> SearchScopes { get; } = new() { "All", "Name", "Tag", "Description", "File" };
+
+    [ObservableProperty]
+    private string _searchScope = "All";
+
+    partial void OnSearchScopeChanged(string value) => ApplySearchFilter();
+
     public List<string> FilterOptions { get; } = new()
     {
         "All", "Pinned", "Army", "Classes", "Dailies", "Evil", "Farm", "Good", "Legion", "Local", "Nation", "Other", "Rep", "Seasonal", "Story", "Ultras"
@@ -144,6 +152,7 @@ public partial class ScriptRepoViewModel : BotControlViewModelBase
     private void ClearSearch()
     {
         SearchText = string.Empty;
+        SearchScope = "All";
         FilterBy = "All";
     }
 
@@ -163,17 +172,7 @@ public partial class ScriptRepoViewModel : BotControlViewModelBase
             await Task.Delay(100, token);
             if (token.IsCancellationRequested) return;
 
-            string query = (value ?? string.Empty).Trim().ToLowerInvariant();
-            List<ScriptInfoViewModel> matches;
-
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                matches = _scripts.ToList();
-            }
-            else
-            {
-                matches = _scripts.Where(s => s.SearchIndex.Contains(query, StringComparison.Ordinal)).ToList();
-            }
+            List<ScriptInfoViewModel> matches = FindMatches(value, SearchScope);
 
             if (token.IsCancellationRequested) return;
 
@@ -877,19 +876,24 @@ public partial class ScriptRepoViewModel : BotControlViewModelBase
         IsBusy = false;
     }
 
+    // Matches in rank order. OrderBy is stable, so within a rank the list keeps its order: pinned first, then the
+    // chosen sort.
+    private List<ScriptInfoViewModel> FindMatches(string? text, string scope)
+    {
+        string query = (text ?? string.Empty).Trim();
+        if (query.Length == 0)
+            return _scripts.ToList();
+
+        return _scripts.Select(s => (Script: s, Rank: s.SearchRank(query, scope)))
+            .Where(m => m.Rank.HasValue)
+            .OrderBy(m => m.Rank)
+            .Select(m => m.Script)
+            .ToList();
+    }
+
     private void ApplySearchFilter()
     {
-        string query = (SearchText ?? string.Empty).Trim().ToLowerInvariant();
-        List<ScriptInfoViewModel> matches;
-
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            matches = _scripts.ToList();
-        }
-        else
-        {
-            matches = _scripts.Where(s => s.SearchIndex.Contains(query, StringComparison.Ordinal)).ToList();
-        }
+        List<ScriptInfoViewModel> matches = FindMatches(SearchText, SearchScope);
 
         FilteredScripts.ReplaceRange(matches);
 

@@ -7,6 +7,7 @@ using Skua.Core.Models.GitHub;
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 
 namespace Skua.Shared.Avalonia.ViewModels.ScriptRepo;
 
@@ -21,7 +22,6 @@ public partial class ScriptInfoViewModel : ObservableObject
         _localSize = localSize ?? info.CachedLocalSize ?? (Downloaded ? (int)new FileInfo(LocalFile).Length : 0);
         _isPinned = isPinned;
         
-        UpdateSearchIndex();
     }
 
     public ScriptInfo Info { get; }
@@ -35,27 +35,46 @@ public partial class ScriptInfoViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(PinIcon), nameof(PinColor), nameof(PinToolTip))]
     private bool _isPinned;
 
-    partial void OnIsPinnedChanged(bool value)
-    {
-        UpdateSearchIndex();
-    }
-
     public string PinIcon => IsPinned ? "Pin" : "PinOutline";
     public string PinColor => IsPinned ? "#F59E0B" : "#9CA3AF";
     public string PinToolTip => IsPinned ? "Unpin script" : "Pin script to top";
     public string ScriptKey => (IsCustom ? LocalFile : FilePath).Replace('\\', '/').Trim();
 
-    private string _searchIndex = string.Empty;
-    public string SearchIndex
+    // Search, as in Skua 1.4.5: null when the script doesn't match, else a rank (lower comes first). "All" ranks name,
+    // then description, then path, then tag matches; one-field scopes rank exact, then "starts with", then "contains".
+    // The path is ListPath (from the Scripts folder), so the local folder above it never matches.
+    public int? SearchRank(string query, string scope)
     {
-        get => _searchIndex;
-        private set => SetProperty(ref _searchIndex, value);
+        switch (scope)
+        {
+            case "Name":
+                return TextRank(FileName, query);
+            case "Tag":
+                return InfoTags.Select(t => TextRank(t, query)).Min();
+            case "Description":
+                return Info.Description?.Contains(query, StringComparison.OrdinalIgnoreCase) == true ? 0 : null;
+            case "File":
+                return new[] { TextRank(ListPath, query), TextRank(Path.GetFileName(ListPath), query) }.Min();
+            default:
+                if (FileName?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
+                    return 0;
+                if (Info.Description?.Contains(query, StringComparison.OrdinalIgnoreCase) == true)
+                    return 1;
+                if (ListPath.Contains(query, StringComparison.OrdinalIgnoreCase))
+                    return 2;
+                return InfoTags.Any(t => t.Contains(query, StringComparison.OrdinalIgnoreCase)) ? 3 : null;
+        }
     }
 
-    private void UpdateSearchIndex()
+    private static int? TextRank(string? text, string query)
     {
-        string tagsStr = Info.Tags != null && Info.Tags.Length > 0 ? string.Join(" ", Info.Tags) : string.Empty;
-        SearchIndex = $"{Info.Name} {DisplayPath} {tagsStr} {(IsPinned ? "pinned" : string.Empty)}".ToLowerInvariant();
+        if (string.IsNullOrEmpty(text))
+            return null;
+        if (text.Equals(query, StringComparison.OrdinalIgnoreCase))
+            return 0;
+        if (text.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+            return 1;
+        return text.Contains(query, StringComparison.OrdinalIgnoreCase) ? 2 : null;
     }
     public string FileName => Info.Name;
     public int Size => Info.Size;
@@ -63,17 +82,29 @@ public partial class ScriptInfoViewModel : ObservableObject
     public string FilePath => Info.FilePath;
     public bool IsCustom { get; }
     public string DisplayPath => IsCustom ? LocalFile : ScriptPath;
+    // The list's path: repo-relative for repo scripts, the whole path for custom ones (they can be anywhere).
+    // A zero-width space after each separator lets it wrap at folders instead of being trimmed.
+    public string ListPath => IsCustom ? LocalFile : FilePath;
+    public string WrappablePath => ListPath.Replace("\\", "\\\u200B").Replace("/", "/\u200B");
 
     private bool DownloadedFileExists => File.Exists(LocalFile);
     public string ScriptPath => Path.Combine(ClientFileSources.SkuaScriptsDIR, FilePath.Replace("/", "\\"));
+    // Dates come from "Update dates from Git"; until then there is none to show
+    public bool HasCreationDate => Info.CreationDate.HasValue && Info.CreationDate.Value > DateTime.MinValue;
+    // Follows the path in a list row: size, and the date when there is one
+    public string ListMeta => HasCreationDate ? $" · {FormattedSize} · {FormattedCreationDate}" : $" · {FormattedSize}";
     public string FormattedCreationDate => Info.CreationDate.HasValue && Info.CreationDate.Value > DateTime.MinValue ? Info.CreationDate.Value.ToString("MMM dd, yyyy") : "Unknown";
 
     private ObservableCollection<string>? _infoTags;
-    public ObservableCollection<string> InfoTags => _infoTags ??= new(Info.Tags ?? Array.Empty<string>());
+    // Blank tags from the repo index are left out
+    public ObservableCollection<string> InfoTags => _infoTags ??= new((Info.Tags ?? Array.Empty<string>()).Where(t => !string.IsNullOrWhiteSpace(t)));
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Outdated), nameof(StatusText), nameof(StatusColor), nameof(StatusBackground))]
+    [NotifyPropertyChangedFor(nameof(Outdated), nameof(StatusText), nameof(StatusColor), nameof(StatusBackground), nameof(CanUpdate))]
     private bool _downloaded;
+
+    // Update re-downloads a local copy of a repo script; custom scripts aren't in the repo, so it's greyed out for them
+    public bool CanUpdate => Downloaded && !IsCustom;
 
     public bool Outdated => !IsCustom && Downloaded && (_localSize != Info.Size || Info.Outdated);
 
