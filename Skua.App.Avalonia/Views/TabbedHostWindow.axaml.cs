@@ -1393,10 +1393,13 @@ public partial class TabbedHostWindow : Window
         };
         StackPanel panel = new StackPanel { Spacing = 12, Margin = new Thickness(18) };
         panel.Children.Add(new TextBlock { Text = "Select a player from the open client tabs:", TextWrapping = TextWrapping.Wrap });
+        string initialPlayer = players.FirstOrDefault(player => player.Equals(_lastJumpPlayer, StringComparison.OrdinalIgnoreCase)) ?? players[0];
         ComboBox playerPicker = new ComboBox
         {
             ItemsSource = players,
-            SelectedItem = players.FirstOrDefault(player => player.Equals(_lastJumpPlayer, StringComparison.OrdinalIgnoreCase)) ?? players[0],
+            SelectedItem = initialPlayer,
+            Text = initialPlayer,
+            IsEditable = true,
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
         panel.Children.Add(playerPicker);
@@ -1411,7 +1414,8 @@ public partial class TabbedHostWindow : Window
         dialog.Content = panel;
 
         bool? confirmed = await dialog.ShowDialog<bool?>(this);
-        if (confirmed != true || playerPicker.SelectedItem is not string targetPlayer || string.IsNullOrWhiteSpace(targetPlayer))
+        string targetPlayer = playerPicker.Text?.Trim() ?? "";
+        if (confirmed != true || string.IsNullOrWhiteSpace(targetPlayer))
             return;
 
         _lastJumpPlayer = targetPlayer;
