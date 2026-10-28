@@ -109,6 +109,16 @@ public partial class LogTabUserControl : UserControl
         await CopySelectedLogsAsync();
     }
 
+    private async void CopyButton_Click(object? sender, RoutedEventArgs e)
+    {
+        await CopySelectedOrAllAsync();
+    }
+
+    private void DeselectButton_Click(object? sender, RoutedEventArgs e)
+    {
+        LogsListBox.SelectedItems?.Clear();
+    }
+
     private async Task CopySelectedLogsAsync()
     {
         if (LogsListBox.SelectedItems is { Count: > 0 } items)
