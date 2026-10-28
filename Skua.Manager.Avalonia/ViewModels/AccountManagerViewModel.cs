@@ -1021,27 +1021,28 @@ public sealed partial class AccountManagerViewModel : BotControlViewModelBase
 
         List<Task> pingTasks = servers.Select(server => Task.Run(async () =>
         {
-            if (string.IsNullOrWhiteSpace(server.IP))
+            if (string.IsNullOrWhiteSpace(server.IP) || server.Port <= 0 || server.Port > 65535)
             {
                 server.Ping = FailedPing;
                 return;
             }
 
-            List<long> samples = new(SampleCount);
+            List<double> samples = new(SampleCount);
 
             for (int sample = 0; sample < SampleCount; sample++)
             {
                 try
                 {
-                    using System.Net.NetworkInformation.Ping ping = new();
-                    System.Net.NetworkInformation.PingReply reply = await ping.SendPingAsync(server.IP, TimeoutMs);
-
-                    if (reply.Status == System.Net.NetworkInformation.IPStatus.Success)
-                        samples.Add(reply.RoundtripTime);
+                    using System.Net.Sockets.TcpClient client = new();
+                    Stopwatch stopwatch = Stopwatch.StartNew();
+                    Task connectTask = client.ConnectAsync(server.IP, server.Port);
+                    await connectTask.WaitAsync(TimeSpan.FromMilliseconds(TimeoutMs));
+                    stopwatch.Stop();
+                    samples.Add(stopwatch.Elapsed.TotalMilliseconds);
                 }
                 catch
                 {
-                    // A failed or timed-out ICMP request is not a valid latency sample.
+                    // A failed or timed-out connection is not a valid latency sample.
                 }
             }
 
@@ -1052,7 +1053,8 @@ public sealed partial class AccountManagerViewModel : BotControlViewModelBase
             }
 
             samples.Sort();
-            server.Ping = samples[samples.Count / 2];
+            double median = samples[samples.Count / 2];
+            server.Ping = (long)Math.Round(median, MidpointRounding.AwayFromZero);
         })).ToList();
 
         await Task.WhenAll(pingTasks);
