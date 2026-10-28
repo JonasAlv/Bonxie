@@ -515,7 +515,7 @@ public partial class MainWindow : Window
                         }
                         
                         var mapService = Ioc.Default.GetRequiredService<IScriptMap>();
-                        if (string.IsNullOrWhiteSpace(map) || mapService.Name.Equals(map.Split('-')[0], StringComparison.OrdinalIgnoreCase))
+                        if (string.IsNullOrWhiteSpace(map) || mapService.Name.Equals(map, StringComparison.OrdinalIgnoreCase))
                             mapService.Jump(cell, pad, false);
                         else
                             mapService.Join(map, cell, pad, true, false);
