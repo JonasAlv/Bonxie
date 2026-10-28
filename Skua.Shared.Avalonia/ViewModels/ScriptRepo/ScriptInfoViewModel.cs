@@ -54,7 +54,7 @@ public partial class ScriptInfoViewModel : ObservableObject
             case "Tag":
                 return InfoTags.Select(t => TextRank(t, query)).Min();
             case "Description":
-                return Info.Description?.Contains(query, StringComparison.OrdinalIgnoreCase) == true ? 0 : null;
+                return TextRank(Info.Description, query);
             case "File":
                 return new[] { TextRank(ListPath, query), TextRank(Path.GetFileName(ListPath), query) }.Min();
             default:
