@@ -1456,7 +1456,7 @@ public partial class TabbedHostWindow : Window
     {
         if (_jumpMapHistory.Count == 0)
         {
-            Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("No recent map destinations yet. Recent destinations will appear here as Army Control jumps to them.", "Jump Map History");
+            Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("No recently visited maps yet. Maps will appear here as your open clients travel.", "Jump Map History");
             return;
         }
 
