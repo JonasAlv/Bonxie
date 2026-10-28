@@ -138,13 +138,25 @@ public partial class LogTabUserControl : UserControl
         await CopySelectedLogsAsync();
     }
 
+    // Every copy handler is async void, so a clipboard failure (another app holding it open) is caught here and
+    // shown in the count line instead of escaping as an unhandled UI exception.
     private async Task CopySelectedLogsAsync()
     {
         if (LogsListBox.SelectedItems is { Count: > 0 } items)
         {
             string text = string.Join(Environment.NewLine, items.Cast<object>().Select(x => x.ToString()));
             if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
-                await clipboard.SetTextAsync(text);
+            {
+                try
+                {
+                    await clipboard.SetTextAsync(text);
+                    UpdateCountText();
+                }
+                catch (Exception)
+                {
+                    CountText.Text = "Couldn't copy: the clipboard is busy, try again";
+                }
+            }
         }
     }
 }
