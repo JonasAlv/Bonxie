@@ -203,11 +203,12 @@ public partial class PacketInterceptorViewModel : BotControlViewModelBase
         FilteredPackets.Clear();
     }
 
-    // Every captured packet, filters and search ignored, one "[OUT] packet" line each
+    // Every captured packet, filters and search ignored, one "[OUT] packet" line each; line breaks inside a
+    // packet are written as \r and \n so each line stays one packet
     [RelayCommand]
     private void ExportPackets()
     {
-        _fileDialog.SaveText(Packets.Select(p => $"[{p.Direction}] {p.Packet}").ToList());
+        _fileDialog.SaveText(Packets.Select(p => $"[{p.Direction}] {p.Packet.Replace("\r", "\\r").Replace("\n", "\\n")}").ToList());
     }
 
     [RelayCommand]
