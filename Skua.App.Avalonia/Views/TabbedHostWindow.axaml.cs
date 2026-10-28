@@ -1571,6 +1571,80 @@ public partial class TabbedHostWindow : Window
         JumpArmyToDestination(presets[presetPicker.SelectedIndex]);
     }
 
+    private async void MenuItem_ManageJumpMapPresets_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_jumpMapPresets.Count == 0)
+        {
+            Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("No map presets saved yet. Use Save Current Map as Preset to add one.", "Manage Map Presets");
+            return;
+        }
+
+        Window dialog = new Window
+        {
+            Title = "Manage Map Presets",
+            Width = 560,
+            MinHeight = 260,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Background = this.Background
+        };
+
+        StackPanel panel = new StackPanel { Spacing = 12, Margin = new Thickness(18) };
+        panel.Children.Add(new TextBlock { Text = "Saved presets — select one to view its destination or delete it.", TextWrapping = TextWrapping.Wrap });
+
+        ListBox presetList = new ListBox
+        {
+            ItemsSource = _jumpMapPresets.Select(item => $"{item.Name} — {item.DisplayName}").ToList(),
+            SelectedIndex = 0,
+            MinHeight = 100,
+            MaxHeight = 320
+        };
+        panel.Children.Add(presetList);
+
+        TextBlock destinationText = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        void UpdateDestination()
+        {
+            int index = presetList.SelectedIndex;
+            destinationText.Text = index >= 0 && index < _jumpMapPresets.Count
+                ? $"Destination: {_jumpMapPresets[index].DisplayName}"
+                : "Select a preset to view its destination.";
+        }
+
+        presetList.SelectionChanged += (_, _) => UpdateDestination();
+        panel.Children.Add(destinationText);
+        UpdateDestination();
+
+        StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8 };
+        Button deleteButton = new Button { Content = "Delete Selected", MinWidth = 120 };
+        Button closeButton = new Button { Content = "Close", MinWidth = 84, IsCancel = true };
+        deleteButton.Click += (_, _) =>
+        {
+            int index = presetList.SelectedIndex;
+            if (index < 0 || index >= _jumpMapPresets.Count)
+                return;
+
+            _jumpMapPresets.RemoveAt(index);
+            SaveArmyJumpSettings();
+
+            List<string> items = _jumpMapPresets.Select(item => $"{item.Name} — {item.DisplayName}").ToList();
+            presetList.ItemsSource = items;
+            presetList.SelectedIndex = _jumpMapPresets.Count == 0 ? -1 : Math.Min(index, _jumpMapPresets.Count - 1);
+            deleteButton.IsEnabled = _jumpMapPresets.Count > 0;
+            UpdateDestination();
+
+            if (_jumpMapPresets.Count == 0)
+                destinationText.Text = "All presets have been deleted.";
+        };
+        closeButton.Click += (_, _) => dialog.Close();
+        buttons.Children.Add(deleteButton);
+        buttons.Children.Add(closeButton);
+        panel.Children.Add(buttons);
+        dialog.Content = panel;
+
+        await dialog.ShowDialog(this);
+    }
+
     private async void MenuItem_JumpPlayer_Click(object? sender, RoutedEventArgs e)
     {
         SyncTabTitles();
