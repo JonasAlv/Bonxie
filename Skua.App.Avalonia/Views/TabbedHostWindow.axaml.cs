@@ -288,6 +288,35 @@ public partial class TabbedHostWindow : Window
         }
     }
 
+    private void RecordClientLocation(int pid, ArmyClientLocation location)
+    {
+        _latestClientLocations[pid] = location;
+        string signature = $"{location.Map}|{location.Room}|{location.Cell}|{location.Pad}";
+        if (_lastRecordedLocationByPid.TryGetValue(pid, out string? previousSignature)
+            && previousSignature.Equals(signature, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _lastRecordedLocationByPid[pid] = signature;
+        _jumpMapHistory.RemoveAll(item =>
+            item.Map.Equals(location.Map, StringComparison.OrdinalIgnoreCase)
+            && item.Room.Equals(location.Room, StringComparison.OrdinalIgnoreCase)
+            && item.Cell.Equals(location.Cell, StringComparison.OrdinalIgnoreCase)
+            && item.Name.Equals(location.Username, StringComparison.OrdinalIgnoreCase));
+
+        _jumpMapHistory.Insert(0, new ArmyJumpDestination
+        {
+            Name = location.Username,
+            Map = location.Map,
+            Room = location.Room,
+            Cell = string.IsNullOrWhiteSpace(location.Cell) ? "Enter" : location.Cell
+        });
+
+        if (_jumpMapHistory.Count > 15)
+            _jumpMapHistory.RemoveRange(15, _jumpMapHistory.Count - 15);
+
+        SaveArmyJumpSettings();
+    }
+
     #endregion Tab State
 
     public TabbedHostWindow() : this(Array.Empty<string>())
@@ -390,6 +419,7 @@ public partial class TabbedHostWindow : Window
             if (!Directory.Exists(dir)) return;
 
             var updates = new List<(TabItem Tab, string Username)>();
+            var locations = new List<(int Pid, ArmyClientLocation Location)>();
 
             foreach (var (tab, pid) in entries)
             {
@@ -401,19 +431,31 @@ public partial class TabbedHostWindow : Window
                     {
                         string username = File.ReadAllText(file).Trim();
                         if (!string.IsNullOrWhiteSpace(username))
-                        {
                             updates.Add((tab, username));
-                        }
+                    }
+
+                    string locationFile = Path.Combine(dir, $"{pid}.location.json");
+                    if (File.Exists(locationFile))
+                    {
+                        ArmyClientLocation? location = JsonSerializer.Deserialize<ArmyClientLocation>(File.ReadAllText(locationFile));
+                        if (location != null
+                            && !string.IsNullOrWhiteSpace(location.Map)
+                            && location.UpdatedUtc >= DateTime.UtcNow.AddSeconds(-5))
+                            locations.Add((pid, location));
                     }
                 }
                 catch { }
             }
 
-            if (updates.Count > 0 && !_isClosing)
+            if ((updates.Count > 0 || locations.Count > 0) && !_isClosing)
             {
                 Dispatcher.UIThread.Post(() =>
                 {
                     if (_isClosing) return;
+
+                    foreach (var (pid, location) in locations)
+                        RecordClientLocation(pid, location);
+
                     foreach (var (tab, username) in updates)
                     {
                         if (_tabs.TryGetValue(tab, out TabInfo? tInfo) && tInfo.IsCustomNamed)
@@ -669,6 +711,9 @@ public partial class TabbedHostWindow : Window
                     info.Process.WaitForExit(500);
                 }
                 try { File.Delete(Path.Combine(Path.GetTempPath(), "VibeSkuaTabs", $"{info.Process.Id}.txt")); } catch { }
+                try { File.Delete(Path.Combine(Path.GetTempPath(), "VibeSkuaTabs", $"{info.Process.Id}.location.json")); } catch { }
+                _latestClientLocations.Remove(info.Process.Id);
+                _lastRecordedLocationByPid.Remove(info.Process.Id);
             }
             catch { }
         }
@@ -1316,6 +1361,19 @@ public partial class TabbedHostWindow : Window
         public string DisplayName => $"{Map}{(string.IsNullOrWhiteSpace(Room) ? "" : $"-{Room}")} - {Cell}";
     }
 
+    private sealed class ArmyClientLocation
+    {
+        public string Map { get; set; } = "";
+        public string Room { get; set; } = "";
+        public string Cell { get; set; } = "Enter";
+        public string Pad { get; set; } = "Spawn";
+        public string Username { get; set; } = "";
+        public DateTime UpdatedUtc { get; set; }
+    }
+
+    private readonly Dictionary<int, ArmyClientLocation> _latestClientLocations = new();
+    private readonly Dictionary<int, string> _lastRecordedLocationByPid = new();
+
     private List<ArmyJumpDestination> _jumpMapHistory = new();
     private List<ArmyJumpDestination> _jumpMapPresets = new();
     private string _lastJumpRoom = "";
@@ -1452,18 +1510,23 @@ public partial class TabbedHostWindow : Window
 
     private void MenuItem_SaveJumpMapPreset_Click(object? sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(_lastJumpMap))
+        if (InstancesTabControl.SelectedItem is not TabItem selectedTab
+            || !_tabs.TryGetValue(selectedTab, out TabInfo? selectedInfo)
+            || selectedInfo.Process == null
+            || !_latestClientLocations.TryGetValue(selectedInfo.Process.Id, out ArmyClientLocation? location)
+            || location.UpdatedUtc < DateTime.UtcNow.AddSeconds(-5)
+            || string.IsNullOrWhiteSpace(location.Map))
         {
-            Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("Enter and jump to a destination first, then save it as a preset.", "Save Map Preset");
+            Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("The selected client has not reported a current map yet. Log in and wait a moment, then try again.", "Save Map Preset");
             return;
         }
 
-        InputDialogViewModel vm = new("Save Map Preset", "Enter a name for the current map, room and cell:", "Preset name", false);
+        InputDialogViewModel vm = new("Save Map Preset", $"Save {location.Map}{(string.IsNullOrWhiteSpace(location.Room) ? "" : $"-{location.Room}")} - {location.Cell} as a preset. Enter a name:", "Preset name", false);
         if (Ioc.Default.GetRequiredService<IDialogService>().ShowDialog(vm) == true && !string.IsNullOrWhiteSpace(vm.DialogTextInput))
         {
             string name = vm.DialogTextInput.Trim();
             _jumpMapPresets.RemoveAll(item => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-            _jumpMapPresets.Add(new ArmyJumpDestination { Name = name, Map = _lastJumpMap, Room = _lastJumpRoom, Cell = _lastJumpCell });
+            _jumpMapPresets.Add(new ArmyJumpDestination { Name = name, Map = location.Map, Room = location.Room, Cell = location.Cell });
             SaveArmyJumpSettings();
         }
     }
