@@ -1389,10 +1389,9 @@ public partial class TabbedHostWindow : Window
             SizeToContent = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             CanResize = false,
-            Padding = new Thickness(18),
             Background = this.Background
         };
-        StackPanel panel = new StackPanel { Spacing = 12 };
+        StackPanel panel = new StackPanel { Spacing = 12, Margin = new Thickness(18) };
         panel.Children.Add(new TextBlock { Text = "Select a player from the open client tabs:", TextWrapping = TextWrapping.Wrap });
         ComboBox playerPicker = new ComboBox
         {
