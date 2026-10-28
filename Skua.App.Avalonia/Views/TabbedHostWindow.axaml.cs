@@ -25,6 +25,7 @@ using System.IO.Pipes;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -301,6 +302,7 @@ public partial class TabbedHostWindow : Window
     {
         _initialArgs = initialArgs ?? Array.Empty<string>();
         InitializeComponent();
+        LoadArmyJumpSettings();
         Title = $"VibeSkua V{Skua.Core.Models.ClientFileSources.DisplayVersion}";
         MainTitleBar.TitleText = Title;
 
@@ -1292,6 +1294,51 @@ public partial class TabbedHostWindow : Window
     private string _lastJumpMap = "";
     private string _lastJumpCell = "";
     private string _lastJumpPlayer = "";
+    private static string ArmyJumpSettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Skua", "army-control-jump.json");
+
+    private sealed class ArmyJumpSettings
+    {
+        public string Map { get; set; } = "";
+        public string Cell { get; set; } = "Enter";
+        public string Player { get; set; } = "";
+    }
+
+    private void LoadArmyJumpSettings()
+    {
+        try
+        {
+            string path = ArmyJumpSettingsPath;
+            if (!File.Exists(path)) return;
+            ArmyJumpSettings? settings = JsonSerializer.Deserialize<ArmyJumpSettings>(File.ReadAllText(path));
+            if (settings == null) return;
+            _lastJumpMap = settings.Map ?? "";
+            _lastJumpCell = settings.Cell ?? "Enter";
+            _lastJumpPlayer = settings.Player ?? "";
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to load Army Control jump settings: {ex.Message}");
+        }
+    }
+
+    private void SaveArmyJumpSettings()
+    {
+        try
+        {
+            string path = ArmyJumpSettingsPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, JsonSerializer.Serialize(new ArmyJumpSettings
+            {
+                Map = _lastJumpMap,
+                Cell = _lastJumpCell,
+                Player = _lastJumpPlayer
+            }, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to save Army Control jump settings: {ex.Message}");
+        }
+    }
 
     private void MenuItem_JumpMap_Click(object? sender, RoutedEventArgs e)
     {
@@ -1303,12 +1350,13 @@ public partial class TabbedHostWindow : Window
             string[] parts = (vm.DialogTextInput ?? "").Split(',');
             string targetMap = parts.Length > 0 ? parts[0].Trim() : "";
             string targetCell = parts.Length > 1 ? parts[1].Trim() : "Enter";
-            if (!string.IsNullOrWhiteSpace(targetMap) || !string.IsNullOrWhiteSpace(targetCell))
+            if (!string.IsNullOrWhiteSpace(targetMap))
             {
                 _lastJumpMap = targetMap;
-                _lastJumpCell = targetCell;
-                string tempFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "skua_global_jump.txt");
-                System.IO.File.WriteAllLines(tempFile, new[] { targetMap, targetCell });
+                _lastJumpCell = string.IsNullOrWhiteSpace(targetCell) ? "Enter" : targetCell;
+                SaveArmyJumpSettings();
+                string tempFile = Path.Combine(Path.GetTempPath(), "skua_global_jump.txt");
+                File.WriteAllLines(tempFile, new[] { _lastJumpMap, _lastJumpCell });
 
                 foreach (var info in _tabs.Values)
                     if (info.ChildHwnd != IntPtr.Zero)
@@ -1317,25 +1365,71 @@ public partial class TabbedHostWindow : Window
         }
     }
 
-    private void MenuItem_JumpPlayer_Click(object? sender, RoutedEventArgs e)
+    private async void MenuItem_JumpPlayer_Click(object? sender, RoutedEventArgs e)
     {
-        var vm = new InputDialogViewModel("Jump Army to Player", "Enter target player username:", "e.g., Artix", false);
-        vm.DialogTextInput = _lastJumpPlayer;
+        SyncTabTitles();
+        List<string> players = _tabs
+            .Select(entry => GetTabLoggedInUsername(entry.Key, entry.Value, GetTabTitle(entry.Key)))
+            .Where(username => !string.IsNullOrWhiteSpace(username))
+            .Select(username => username!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(username => username, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-        if (Ioc.Default.GetRequiredService<IDialogService>().ShowDialog(vm) == true)
+        if (players.Count == 0)
         {
-            string targetPlayer = vm.DialogTextInput?.Trim() ?? "";
-            if (!string.IsNullOrWhiteSpace(targetPlayer))
-            {
-                _lastJumpPlayer = targetPlayer;
-                string tempFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "skua_global_jump_player.txt");
-                System.IO.File.WriteAllText(tempFile, targetPlayer);
-
-                foreach (var info in _tabs.Values)
-                    if (info.ChildHwnd != IntPtr.Zero)
-                        PostMessage(info.ChildHwnd, WM_SKUA_JUMP_PLAYER, IntPtr.Zero, IntPtr.Zero);
-            }
+            Ioc.Default.GetService<IDialogService>()?.ShowMessageBox("No logged-in player names were found in the open client tabs. Log in to at least one tab and try again.", "Jump All to Player");
+            return;
         }
+
+        Window dialog = new Window
+        {
+            Title = "Jump Army to Player",
+            Width = 360,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Padding = new Thickness(18),
+            Background = this.Background
+        };
+        StackPanel panel = new StackPanel { Spacing = 12 };
+        panel.Children.Add(new TextBlock { Text = "Select a player from the open client tabs:", TextWrapping = TextWrapping.Wrap });
+        ComboBox playerPicker = new ComboBox
+        {
+            ItemsSource = players,
+            SelectedItem = players.FirstOrDefault(player => player.Equals(_lastJumpPlayer, StringComparison.OrdinalIgnoreCase)) ?? players[0],
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        panel.Children.Add(playerPicker);
+        StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8 };
+        Button cancelButton = new Button { Content = "Cancel", MinWidth = 84 };
+        Button jumpButton = new Button { Content = "Jump", MinWidth = 84, IsDefault = true };
+        cancelButton.Click += (_, _) => dialog.Close(false);
+        jumpButton.Click += (_, _) => dialog.Close(true);
+        buttons.Children.Add(cancelButton);
+        buttons.Children.Add(jumpButton);
+        panel.Children.Add(buttons);
+        dialog.Content = panel;
+
+        bool? confirmed = await dialog.ShowDialog<bool?>(this);
+        if (confirmed != true || playerPicker.SelectedItem is not string targetPlayer || string.IsNullOrWhiteSpace(targetPlayer))
+            return;
+
+        _lastJumpPlayer = targetPlayer;
+        SaveArmyJumpSettings();
+        string tempFile = Path.Combine(Path.GetTempPath(), "skua_global_jump_player.txt");
+        File.WriteAllText(tempFile, targetPlayer);
+
+        foreach (var info in _tabs.Values)
+            if (info.ChildHwnd != IntPtr.Zero)
+                PostMessage(info.ChildHwnd, WM_SKUA_JUMP_PLAYER, IntPtr.Zero, IntPtr.Zero);
+    }
+
+    private string GetTabTitle(TabItem tab)
+    {
+        if (tab.Header is StackPanel headerPanel)
+            return headerPanel.Children.OfType<TextBlock>().FirstOrDefault(block => block.Text != "✕")?.Text ?? "";
+        return tab.Header?.ToString() ?? "";
     }
 
     // Each client joins its own house (no input needed).
