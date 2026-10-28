@@ -1403,21 +1403,51 @@ public partial class TabbedHostWindow : Window
                 PostMessage(info.ChildHwnd, WM_SKUA_JUMP_MAP, IntPtr.Zero, IntPtr.Zero);
     }
 
-    private void MenuItem_JumpMapHistory_Click(object? sender, RoutedEventArgs e)
+    private async void MenuItem_JumpMapHistory_Click(object? sender, RoutedEventArgs e)
     {
         if (_jumpMapHistory.Count == 0)
         {
-            Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("No recent map destinations yet.", "Jump Map History");
+            Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("No recent map destinations yet. Recent destinations will appear here as Army Control jumps to them.", "Jump Map History");
             return;
         }
 
-        string choices = string.Join(Environment.NewLine, _jumpMapHistory.Select((item, index) => $"{index + 1}. {item.DisplayName}"));
-        InputDialogViewModel vm = new("Jump to Recent Destination", $"Enter a history number:{Environment.NewLine}{choices}", "e.g., 1", false);
-        vm.DialogTextInput = "1";
-        if (Ioc.Default.GetRequiredService<IDialogService>().ShowDialog(vm) == true
-            && int.TryParse(vm.DialogTextInput, out int index)
-            && index >= 1 && index <= _jumpMapHistory.Count)
-            JumpArmyToDestination(_jumpMapHistory[index - 1]);
+        Window dialog = new Window
+        {
+            Title = "Jump to Recent Destination",
+            Width = 440,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Background = this.Background
+        };
+
+        StackPanel panel = new StackPanel { Spacing = 12, Margin = new Thickness(18) };
+        panel.Children.Add(new TextBlock { Text = "Select a recent map, room and cell:", TextWrapping = TextWrapping.Wrap });
+
+        List<ArmyJumpDestination> history = _jumpMapHistory.ToList();
+        ComboBox historyPicker = new ComboBox
+        {
+            ItemsSource = history.Select(item => item.DisplayName).ToList(),
+            SelectedIndex = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        panel.Children.Add(historyPicker);
+
+        StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8 };
+        Button cancelButton = new Button { Content = "Cancel", MinWidth = 84 };
+        Button jumpButton = new Button { Content = "Jump", MinWidth = 84, IsDefault = true };
+        cancelButton.Click += (_, _) => dialog.Close(false);
+        jumpButton.Click += (_, _) => dialog.Close(true);
+        buttons.Children.Add(cancelButton);
+        buttons.Children.Add(jumpButton);
+        panel.Children.Add(buttons);
+        dialog.Content = panel;
+
+        bool? confirmed = await dialog.ShowDialog<bool?>(this);
+        if (confirmed != true || historyPicker.SelectedIndex < 0 || historyPicker.SelectedIndex >= history.Count)
+            return;
+
+        JumpArmyToDestination(history[historyPicker.SelectedIndex]);
     }
 
     private void MenuItem_SaveJumpMapPreset_Click(object? sender, RoutedEventArgs e)
