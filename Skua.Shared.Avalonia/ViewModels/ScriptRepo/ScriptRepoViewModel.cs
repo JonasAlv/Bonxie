@@ -741,10 +741,8 @@ public partial class ScriptRepoViewModel : BotControlViewModelBase
             ProgressReportMessage = $"Downloading {target.FileName}...";
             await _getScriptsService.DownloadScriptAsync(target.Info, token);
             ProgressReportMessage = $"Downloaded {target.FileName}.";
-            target.Downloaded = true;
-            target.LocalSize = File.Exists(target.LocalFile) ? (int)new FileInfo(target.LocalFile).Length : target.Info.Size;
-            target.Info.CachedDownloaded = true;
-            target.Info.CachedLocalSize = target.LocalSize;
+            int localSize = File.Exists(target.LocalFile) ? (int)new FileInfo(target.LocalFile).Length : target.Info.Size;
+            await target.RefreshDownloadStateAsync(true, localSize);
         }
         catch (OperationCanceledException)
         {
