@@ -43,6 +43,20 @@
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="Padding" Value="16,0" />
     </Style>
+
+    <!-- Option rows: title, and the muted description under it -->
+    <Style Selector="TextBlock.option-title">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="Foreground" Value="{DynamicResource SkuaTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.option-description">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Foreground" Value="{DynamicResource SkuaMutedTextBrush}" />
+    </Style>
 </Styles>
 
 

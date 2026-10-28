@@ -12,7 +12,7 @@ namespace Skua.App.Avalonia.ViewModels.Packets;
 public partial class PacketSpammerViewModel : BotControlViewModelBase
 {
     public PacketSpammerViewModel(IScriptSend send, IFileDialogService fileDialog)
-        : base("Packet Spammer", 739, 553, canResize: true)
+        : base("Packet Spammer")
     {
         _send = send;
         _fileDialog = fileDialog;
@@ -39,6 +39,10 @@ public partial class PacketSpammerViewModel : BotControlViewModelBase
     [ObservableProperty]
     private int _selectedIndex = -1;
 
+    // "Sending n of m" while the spammer runs
+    [ObservableProperty]
+    private string _runStatus = string.Empty;
+
     [RelayCommand]
     private void ClearPackets()
     {
@@ -50,18 +54,20 @@ public partial class PacketSpammerViewModel : BotControlViewModelBase
     {
         if (SpammerCommand.IsRunning)
             SpammerCommand.Cancel();
-        else
+        else if (Packets.Count > 0)
             SpammerCommand.ExecuteAsync(null);
     }
 
     [RelayCommand]
     private async Task Spammer(CancellationToken token)
     {
-        while (!token.IsCancellationRequested)
+        // Stops once the queue is emptied, or the loop would spin without awaiting
+        while (!token.IsCancellationRequested && Packets.Count > 0)
         {
             for (int i = 0; i < Packets.Count; i++)
             {
                 SelectedIndex = i;
+                RunStatus = $"Sending {i + 1} of {Packets.Count}";
                 Send(Packets[i]);
                 await Task.Delay(SpamDelay, token);
             }
@@ -75,6 +81,12 @@ public partial class PacketSpammerViewModel : BotControlViewModelBase
             return;
 
         Packets.RemoveAt(SelectedIndex);
+    }
+
+    public void RemovePacketAt(int index)
+    {
+        if (index >= 0 && index < Packets.Count)
+            Packets.RemoveAt(index);
     }
 
     [RelayCommand]

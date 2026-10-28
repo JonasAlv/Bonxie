@@ -23,14 +23,14 @@ internal class Options
 
         List<DisplayOptionItemViewModelBase> options = new()
         {
-            new CommandOptionItemViewModel<bool>("Upgrade", "1", CreateBoolCommand(b => Ioc.Default.GetRequiredService<IFlashUtil>().SetGameObject("world.myAvatar.pMC.pname.ti.textColor", b ? 0x8CD5FF : 0xFFFFFF))),
-            new CommandOptionItemViewModel<bool>("Staff", "1", CreateBoolCommand(b => Ioc.Default.GetRequiredService<IFlashUtil>().SetGameObject("world.myAvatar.pMC.pname.ti.textColor", b ? 0xFECB38 : 0xFFFFFF))),
-            new CommandOptionItemViewModel<IRelayCommand>("Reload Map", "4", new RelayCommand(Ioc.Default.GetRequiredService<IScriptMap>().Reload))
+            new CommandOptionItemViewModel<bool>("Upgrade Name Colour", "1", CreateBoolCommand(b => Ioc.Default.GetRequiredService<IFlashUtil>().SetGameObject("world.myAvatar.pMC.pname.ti.textColor", b ? 0x8CD5FF : 0xFFFFFF))),
+            new CommandOptionItemViewModel<bool>("Staff Name Colour", "1", CreateBoolCommand(b => Ioc.Default.GetRequiredService<IFlashUtil>().SetGameObject("world.myAvatar.pMC.pname.ti.textColor", b ? 0xFECB38 : 0xFFFFFF))),
+            new CommandOptionItemViewModel<IRelayCommand>("Reload Map", "4", new RelayCommand(Ioc.Default.GetRequiredService<IScriptMap>().Reload)) { ActionText = "Reload" }
         };
 
         foreach (PropertyInfo pi in scriptOpt.GetType().GetProperties())
         {
-            if (pi.Name is nameof(IScriptOption.OptionDictionary) or nameof(ObservableRecipient.IsActive) or nameof(IScriptOption.GuildColor) or nameof(IScriptOption.NameColor) or "IsIpcMessageProcessing" or nameof(IScriptOption.ReloginTryDelay) or nameof(IScriptOption.UseFunctionBasedSkills))
+            if (pi.Name is nameof(IScriptOption.OptionDictionary) or nameof(ObservableRecipient.IsActive) or nameof(IScriptOption.GuildColor) or nameof(IScriptOption.NameColor) or "IsIpcMessageProcessing" or nameof(IScriptOption.ReloginTryDelay) or nameof(IScriptOption.UseFunctionBasedSkills) or nameof(IScriptOption.ReloginServer))
                 continue;
             if (pi.PropertyType == typeof(bool))
                 options.Add(CreateOptionItem<bool>(s, pi.Name, "1", new RelayCommand<bool>(b => pi.SetValue(scriptOpt, b))));
@@ -51,7 +51,9 @@ internal class Options
         return new GameOptionsViewModel(options, s.GetService<IScriptServers>()!, scriptOpt);
 
         static RelayCommand<bool> CreateBoolCommand(Action<bool> action) => new(action);
-        static BindingOptionItemViewModel<T, ScriptOption> CreateOptionItem<T>(IServiceProvider s, string binding, string tag, IRelayCommand command) => new(s.GetRequiredService<IDecamelizer>().Decamelize(binding, null), tag, binding, (ScriptOption)s.GetRequiredService<IScriptOption>(), command);
+        static BindingOptionItemViewModel<T, ScriptOption> CreateOptionItem<T>(IServiceProvider s, string binding, string tag, IRelayCommand command) => new(Label(s, binding), tag, binding, (ScriptOption)s.GetRequiredService<IScriptOption>(), command);
+        // The decamelizer keeps "ACDrops" together
+        static string Label(IServiceProvider s, string binding) => binding == nameof(IScriptOption.AcceptACDrops) ? "Accept AC Drops" : s.GetRequiredService<IDecamelizer>().Decamelize(binding, null);
         static BindingOptionItemViewModel<T, ScriptOption> CreateOptionItemWithSuffix<T>(IServiceProvider s, string binding, string tag, string? suffixText, IRelayCommand command)
         {
             BindingOptionItemViewModel<T, ScriptOption> item = new(s.GetRequiredService<IDecamelizer>().Decamelize(binding, null), tag, binding, (ScriptOption)s.GetRequiredService<IScriptOption>(), command)
@@ -76,36 +78,36 @@ internal class Options
             CreateSettingOptionItem<string>("Discord Webhook URL", "URL to send Discord notifications and live statistics when scripts start, stop, or crash", "DiscordWebhookUrl"),
             new CommandOptionItemViewModel<IRelayCommand>("Test Discord Webhook", new AsyncRelayCommand(async () => {
                 await Ioc.Default.GetRequiredService<IDiscordWebhookService>().TestWebhookAsync();
-            })),
+            })) { ActionText = "Test" },
             CreateSettingOptionItem<string>("Skua Nexus Webhook URL", "URL to send Skua Nexus notifications and live bot statistics", "NexusWebhookUrl"),
             new CommandOptionItemViewModel<IRelayCommand>("Test Skua Nexus Webhook", new AsyncRelayCommand(async () => {
                 await Ioc.Default.GetRequiredService<IDiscordWebhookService>().TestNexusWebhookAsync();
-            })),
-            CreateSettingOptionItem<bool>("Webhook: Notify on Script Started", "Send alerts and initial statistics when a script starts running", "WebhookNotifyStarted"),
-            CreateSettingOptionItem<bool>("Webhook: Notify on Script Stopped", "Send session summary and statistics when a script finishes or stops", "WebhookNotifyStopped"),
-            CreateSettingOptionItem<bool>("Webhook: Notify on Script Crashed", "Send alerts when a script crashes with an error", "WebhookNotifyCrashed"),
-            CreateSettingOptionItem<bool>("Webhook: Notify on Relog", "Send alerts when Skua disconnects and relogs", "WebhookNotifyRelogged"),
-            CreateSettingOptionItem<bool>("Webhook: Notify on Item Drop", "Send webhook notifications (and screenshot) when a specific item drops", "WebhookNotifyItemDrops"),
-            CreateSettingOptionItem<string>("Webhook: Drop List", "Comma-separated list of items to notify on drop", "WebhookNotifyItemDropsList"),
-            CreateSettingOptionItem<bool>("Webhook: Enable Health Pings", "Whether to send periodic health and bot statistics pings to Discord", "WebhookNotifyHealthPing"),
-            new CommandOptionItemViewModel<int>("Webhook: Health Ping Interval (Mins)", "Minutes between health pings (e.g. 5, 10, 30)", "WebhookPingInterval", "Min", new RelayCommand<string>(value =>
+            })) { ActionText = "Test" },
+            CreateSettingOptionItem<bool>("Notify on Script Started", "Send alerts and initial statistics when a script starts running", "WebhookNotifyStarted"),
+            CreateSettingOptionItem<bool>("Notify on Script Stopped", "Send session summary and statistics when a script finishes or stops", "WebhookNotifyStopped"),
+            CreateSettingOptionItem<bool>("Notify on Script Crashed", "Send alerts when a script crashes with an error", "WebhookNotifyCrashed"),
+            CreateSettingOptionItem<bool>("Notify on Relog", "Send alerts when Skua disconnects and relogs", "WebhookNotifyRelogged"),
+            CreateSettingOptionItem<bool>("Notify on Item Drop", "Send webhook notifications (and screenshot) when a specific item drops", "WebhookNotifyItemDrops"),
+            CreateSettingOptionItem<string>("Drop List", "Comma-separated list of items to notify on drop", "WebhookNotifyItemDropsList"),
+            CreateSettingOptionItem<bool>("Enable Health Pings", "Whether to send periodic health and bot statistics pings to Discord", "WebhookNotifyHealthPing"),
+            new CommandOptionItemViewModel<int>("Health Ping Interval", "Minutes between health pings (e.g. 5, 10, 30)", "WebhookPingInterval", "Min", new RelayCommand<string>(value =>
             {
                 if (!int.TryParse(value, out int result) || result < 1) return;
                 Ioc.Default.GetRequiredService<ISettingsService>().Set("WebhookPingInterval", result);
             }), s.GetRequiredService<ISettingsService>().Get<int>("WebhookPingInterval")),
-            new CommandOptionItemViewModel<int>("* Client Animation Frame-rate", "Client side animation frame-rate setting", "ClientAnim", "FPS", new RelayCommand<string>(value =>
+            new CommandOptionItemViewModel<int>("Client Animation Frame-rate", "Client side animation frame-rate setting", "ClientAnim", "FPS", new RelayCommand<string>(value =>
             {
                 if (!int.TryParse(value, out int result) || result < 1)
                     return;
                 Ioc.Default.GetRequiredService<ISettingsService>().Set("AnimationFrameRate", result);
-            }), s.GetRequiredService<ISettingsService>().Get<int>("AnimationFrameRate")),
+            }), s.GetRequiredService<ISettingsService>().Get<int>("AnimationFrameRate")) { RequiresRestart = true },
             new CommandOptionItemViewModel<int>("Relogin Try Delay", "Delay in milliseconds between login attempts when disconnected", "ReloginTryDelay", "ms", new RelayCommand<string>(value =>
             {
                 if (!int.TryParse(value, out int result) || result < 0)
                     return;
                 Ioc.Default.GetRequiredService<ISettingsService>().Set("ReloginTryDelay", result);
             }), s.GetRequiredService<ISettingsService>().Get<int>("ReloginTryDelay")),
-            new CommandOptionItemViewModel<IRelayCommand>("Clear Flash Cache", new RelayCommand(() =>
+            new CommandOptionItemViewModel<IRelayCommand>("Clear Flash Cache", "ClearFlashCache", new RelayCommand(() =>
             {
                 string flash = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Adobe", "Flash Player");
                 string macromedia = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Macromedia", "Flash Player");
@@ -114,7 +116,7 @@ internal class Options
                     Directory.Delete(flash, true);
                 if (Directory.Exists(macromedia))
                     Directory.Delete(macromedia, true);
-            }))
+            })) { ActionText = "Clear" }
         };
 
         return new ApplicationOptionsViewModel(appOptions);

@@ -420,4 +420,47 @@
         <Setter Property="BorderBrush" Value="{DynamicResource SkuaDangerSoftBorderBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource SkuaDangerBrush}" />
     </Style>
+
+    <!-- Set button attached to an option field: flat segment with a divider; .pending (unapplied edit) is accent,
+         .applied shows the green check -->
+    <Style Selector="Button.option-set">
+        <Setter Property="Height" Value="30" />
+        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="MinWidth" Value="48" />
+        <Setter Property="Padding" Value="10,0" />
+        <!-- Rounded on the right to sit inside the field's 8px corners (8 minus its 1px border) -->
+        <Setter Property="CornerRadius" Value="0,7,7,0" />
+        <Setter Property="BorderThickness" Value="1,0,0,0" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SkuaBorderBrush}" />
+        <Setter Property="Background" Value="{DynamicResource SkuaSurfaceBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource SkuaMutedTextBrush}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.option-set /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="CornerRadius" Value="0,7,7,0" />
+        <Setter Property="BorderThickness" Value="1,0,0,0" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SkuaBorderBrush}" />
+    </Style>
+    <Style Selector="Button.option-set:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SkuaNavHoverBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SkuaBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource SkuaTextBrush}" />
+    </Style>
+    <Style Selector="Button.option-set:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource SkuaPressedBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SkuaBorderBrush}" />
+    </Style>
+    <Style Selector="Button.option-set.pending">
+        <Setter Property="Foreground" Value="{DynamicResource SkuaTextBrush}" />
+        <Setter Property="Background" Value="{DynamicResource SkuaAccentTintStrongBrush}" />
+    </Style>
+    <Style Selector="Button.option-set.applied">
+        <Setter Property="Foreground" Value="{DynamicResource SkuaSuccessBrush}" />
+    </Style>
+    <Style Selector="Button.option-set.applied:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource SkuaSuccessBrush}" />
+    </Style>
 </Styles>
