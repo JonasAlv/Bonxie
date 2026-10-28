@@ -18,6 +18,7 @@ using System.Runtime.InteropServices;
 using System.Linq;
 using Skua.Core.Interfaces.ViewModels;
 using System.Threading.Tasks;
+using System.Text.Json;
 using Skua.Core.AppStartup;
 
 #if IS_WINDOWS
@@ -330,18 +331,42 @@ public partial class MainWindow : Window
             try
             {
                 var bot = Ioc.Default.GetRequiredService<IScriptInterface>();
-                if (bot.Player.LoggedIn && !string.IsNullOrWhiteSpace(bot.Player.Username))
+                if (!bot.Player.LoggedIn || string.IsNullOrWhiteSpace(bot.Player.Username))
+                    return;
+
+                string username = bot.Player.Username;
+                string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "VibeSkuaTabs");
+                System.IO.Directory.CreateDirectory(dir);
+
+                if (username != lastWrittenUsername)
                 {
-                    string username = bot.Player.Username;
-                    if (username != lastWrittenUsername)
-                    {
-                        lastWrittenUsername = username;
-                        string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "VibeSkuaTabs");
-                        System.IO.Directory.CreateDirectory(dir);
-                        string file = System.IO.Path.Combine(dir, $"{Environment.ProcessId}.txt");
-                        System.IO.File.WriteAllText(file, username);
-                    }
+                    lastWrittenUsername = username;
+                    string usernameFile = System.IO.Path.Combine(dir, $"{Environment.ProcessId}.txt");
+                    System.IO.File.WriteAllText(usernameFile, username);
                 }
+
+                IScriptMap map = Ioc.Default.GetRequiredService<IScriptMap>();
+                IScriptPlayer player = Ioc.Default.GetRequiredService<IScriptPlayer>();
+                IScriptOption options = Ioc.Default.GetRequiredService<IScriptOption>();
+                if (!map.Loaded || string.IsNullOrWhiteSpace(map.Name) || string.IsNullOrWhiteSpace(player.Cell))
+                    return;
+
+                string room = options.PrivateRooms
+                    ? (options.PrivateNumber > 0 ? options.PrivateNumber.ToString() : "100000")
+                    : string.Empty;
+                string locationFile = System.IO.Path.Combine(dir, $"{Environment.ProcessId}.location.json");
+                string temporaryFile = locationFile + ".tmp";
+                string locationJson = JsonSerializer.Serialize(new
+                {
+                    Map = map.Name,
+                    Room = room,
+                    Cell = player.Cell,
+                    Pad = string.IsNullOrWhiteSpace(player.Pad) ? "Spawn" : player.Pad,
+                    Username = username,
+                    UpdatedUtc = DateTime.UtcNow
+                });
+                System.IO.File.WriteAllText(temporaryFile, locationJson);
+                System.IO.File.Move(temporaryFile, locationFile, true);
             }
             catch { }
         };
@@ -354,9 +379,16 @@ public partial class MainWindow : Window
         _tabTitleSyncTimer?.Stop();
         try
         {
-            string file = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "VibeSkuaTabs", $"{Environment.ProcessId}.txt");
+            string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "VibeSkuaTabs");
+            string file = System.IO.Path.Combine(dir, $"{Environment.ProcessId}.txt");
+            string locationFile = System.IO.Path.Combine(dir, $"{Environment.ProcessId}.location.json");
+            string temporaryFile = locationFile + ".tmp";
             if (System.IO.File.Exists(file))
                 System.IO.File.Delete(file);
+            if (System.IO.File.Exists(locationFile))
+                System.IO.File.Delete(locationFile);
+            if (System.IO.File.Exists(temporaryFile))
+                System.IO.File.Delete(temporaryFile);
         }
         catch { }
 
