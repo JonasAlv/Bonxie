@@ -24,6 +24,7 @@ public partial class PacketInterceptorViewModel : BotControlViewModelBase
 {
     private readonly ICaptureProxy _gameProxy;
     private readonly IScriptServers _server;
+    private readonly IFileDialogService _fileDialog;
     private readonly InterceptorLogger _logger;
     private readonly List<PacketLogFilterViewModel> _allPacketFilters;
 
@@ -37,13 +38,7 @@ public partial class PacketInterceptorViewModel : BotControlViewModelBase
     private ObservableCollection<InterceptedPacketViewModel> _filteredPackets = new();
 
     [ObservableProperty]
-    private ObservableCollection<PacketLogFilterViewModel> _visiblePacketFilters = new();
-
-    [ObservableProperty]
     private string _packetSearchText = string.Empty;
-
-    [ObservableProperty]
-    private string _filterSearchText = string.Empty;
 
     private bool _isLogging;
 
@@ -68,19 +63,21 @@ public partial class PacketInterceptorViewModel : BotControlViewModelBase
     public bool Running => _gameProxy.Running;
     public IReadOnlyList<PacketLogFilterViewModel> PacketFilters => _allPacketFilters;
 
-    public PacketInterceptorViewModel(IEnumerable<PacketLogFilterViewModel> filters, ICaptureProxy gameProxy, IScriptServers server)
+    // "shown / total" for the filter button
+    public string ShownFiltersText => $"{_allPacketFilters.Count(f => f.IsChecked)} / {_allPacketFilters.Count}";
+
+    public PacketInterceptorViewModel(IEnumerable<PacketLogFilterViewModel> filters, ICaptureProxy gameProxy, IScriptServers server, IFileDialogService fileDialog)
         : base("Packet Interceptor")
     {
         _gameProxy = gameProxy;
         _server = server;
+        _fileDialog = fileDialog;
         _allPacketFilters = filters.ToList();
 
         foreach (var filter in _allPacketFilters)
         {
             filter.PropertyChanged += OnFilterPropertyChanged;
         }
-
-        UpdateVisibleFilters();
 
         _logger = new InterceptorLogger(OnPacketIntercepted);
         IsLogging = true;
@@ -157,29 +154,12 @@ public partial class PacketInterceptorViewModel : BotControlViewModelBase
         RefreshFilteredPackets();
     }
 
-    partial void OnFilterSearchTextChanged(string value)
-    {
-        UpdateVisibleFilters();
-    }
-
     private void OnFilterPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(PacketLogFilterViewModel.IsChecked))
         {
+            OnPropertyChanged(nameof(ShownFiltersText));
             RefreshFilteredPackets();
-        }
-    }
-
-    private void UpdateVisibleFilters()
-    {
-        VisiblePacketFilters.Clear();
-        string query = FilterSearchText?.Trim() ?? string.Empty;
-        foreach (var filter in _allPacketFilters)
-        {
-            if (string.IsNullOrEmpty(query) || filter.Content.Contains(query, StringComparison.OrdinalIgnoreCase))
-            {
-                VisiblePacketFilters.Add(filter);
-            }
         }
     }
 
@@ -221,6 +201,14 @@ public partial class PacketInterceptorViewModel : BotControlViewModelBase
     {
         Packets.Clear();
         FilteredPackets.Clear();
+    }
+
+    // Every captured packet, filters and search ignored, one "[OUT] packet" line each; line breaks inside a
+    // packet are written as \r and \n so each line stays one packet
+    [RelayCommand]
+    private void ExportPackets()
+    {
+        _fileDialog.SaveText(Packets.Select(p => $"[{p.Direction}] {p.Packet.Replace("\r", "\\r").Replace("\n", "\\n")}").ToList());
     }
 
     [RelayCommand]

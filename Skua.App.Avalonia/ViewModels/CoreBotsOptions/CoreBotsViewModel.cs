@@ -6,6 +6,7 @@ using Skua.Shared.Avalonia.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace Skua.App.Avalonia.ViewModels.CoreBotsOptions;
@@ -13,7 +14,7 @@ namespace Skua.App.Avalonia.ViewModels.CoreBotsOptions;
 public partial class CoreBotsViewModel : BotControlViewModelBase
 {
     public CoreBotsViewModel(List<TabItemViewModel> tabs, IScriptPlayer player, IDialogService dialogService)
-        : base("CoreBots Options")
+        : base("CoreBots Options", 800, 608)
     {
         CoreBotsTabs = tabs;
         _selectedTab = CoreBotsTabs[0];
@@ -42,7 +43,12 @@ public partial class CoreBotsViewModel : BotControlViewModelBase
     private Dictionary<string, Dictionary<string, string>> _readValues = new();
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOptionsTabSelected))]
     private TabItemViewModel _selectedTab;
+
+    // The Options tab's search sits on the tab row, shown while that tab is open
+    public CBOptionsViewModel? OptionsTab => CoreBotsTabs.Select(t => t.Content).OfType<CBOptionsViewModel>().FirstOrDefault();
+    public bool IsOptionsTabSelected => SelectedTab?.Content is CBOptionsViewModel;
 
     [ObservableProperty]
     private string _currentPlayer = string.Empty;

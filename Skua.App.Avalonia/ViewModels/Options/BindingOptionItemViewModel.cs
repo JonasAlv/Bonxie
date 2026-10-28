@@ -6,12 +6,20 @@ using System.ComponentModel;
 
 namespace Skua.App.Avalonia.ViewModels.Options;
 
-public class BindingOptionItemViewModel<TDisplay, TOptionBindingTarget> : CommandOptionItemViewModel, IDisposable
+// An option bound to a named property of an options object (Game Options sorts its sections by this name)
+public interface IBindingOptionItem
+{
+    string Binding { get; }
+}
+
+public class BindingOptionItemViewModel<TDisplay, TOptionBindingTarget> : CommandOptionItemViewModel, IBindingOptionItem, IDisposable
     where TOptionBindingTarget : class, IOptionDictionary, INotifyPropertyChanged
 {
     private readonly string _binding;
     private readonly TOptionBindingTarget _options;
     private bool _disposed;
+
+    public string Binding => _binding;
 
     public BindingOptionItemViewModel(string content, string binding, TOptionBindingTarget options, IRelayCommand command) : base(content, command, typeof(TDisplay))
     {
