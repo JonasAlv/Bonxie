@@ -214,6 +214,7 @@
                                 </MenuItem>
                                 <MenuItem Header="Jump to Map History..." Click="MenuItem_JumpMapHistory_Click" />
                                 <MenuItem Header="Jump to Map Preset..." Click="MenuItem_JumpMapPreset_Click" />
+                                <MenuItem Header="Manage Map Presets..." Click="MenuItem_ManageJumpMapPresets_Click" />
                                 <MenuItem Header="Save Current Map as Preset..." Click="MenuItem_SaveJumpMapPreset_Click" />
                                 <MenuItem Header="Jump All to Player..." Click="MenuItem_JumpPlayer_Click">
                                     <MenuItem.Icon>
