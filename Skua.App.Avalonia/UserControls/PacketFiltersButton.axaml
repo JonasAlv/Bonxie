@@ -1,0 +1,43 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
+             x:Class="Skua.App.Avalonia.UserControls.PacketFiltersButton">
+  <!-- "Show n / m" button for the packet tools. Binds by name to the view's PacketFilters, ShownFiltersText and the
+       SelectAll/Clear/InvertFilters commands. -->
+  <Button Classes="skua-button w140" HorizontalContentAlignment="Stretch" ToolTip.Tip="Which kinds of packets to show">
+    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="6">
+      <materialIcons:MaterialIcon Grid.Column="0" Kind="FilterVariant" Width="15" Height="15" />
+      <TextBlock Grid.Column="1" Text="Show" VerticalAlignment="Center" />
+      <Border Grid.Column="2" Classes="count">
+        <TextBlock Text="{Binding ShownFiltersText}" />
+      </Border>
+      <materialIcons:MaterialIcon Grid.Column="4" Kind="ChevronDown" Width="16" Height="16"
+                                  Foreground="{DynamicResource SkuaMutedTextBrush}" />
+    </Grid>
+    <Button.Flyout>
+      <Flyout Placement="BottomEdgeAlignedRight">
+        <StackPanel Width="356" Spacing="6">
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" Margin="4,0,0,0">
+            <TextBlock Grid.Column="0" Classes="section-label" Text="SHOW PACKETS" />
+            <Button Grid.Column="1" Classes="skua-button small w64" Content="All" Command="{Binding SelectAllFiltersCommand}" />
+            <Button Grid.Column="2" Classes="skua-button small w64" Content="None" Command="{Binding ClearFiltersCommand}" />
+            <Button Grid.Column="3" Classes="skua-button small w64" Content="Invert" Command="{Binding InvertFiltersCommand}" />
+          </Grid>
+          <Separator Background="{DynamicResource SkuaBorderBrush}" Margin="0" />
+          <ItemsControl ItemsSource="{Binding PacketFilters}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <UniformGrid Columns="3" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <CheckBox Content="{Binding Content}" IsChecked="{Binding IsChecked}" Margin="4,3" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Flyout>
+    </Button.Flyout>
+  </Button>
+</UserControl>

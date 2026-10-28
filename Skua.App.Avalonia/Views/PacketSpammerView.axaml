@@ -2,110 +2,123 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="Skua.App.Avalonia.Views.PacketSpammerView">
-  <Grid Margin="12"
-        ColumnDefinitions="*,180"
-        RowDefinitions="*,Auto"
-        ColumnSpacing="12"
-        RowSpacing="10">
-    
-    <!-- Left: Packets List Card -->
-    <Border Grid.Row="0"
-            Grid.Column="0"
-            Background="{DynamicResource SkuaSurfaceBrush}"
-            BorderBrush="{DynamicResource SkuaBorderBrush}"
-            BorderThickness="1"
-            CornerRadius="8"
-            Padding="12">
-      <Grid RowDefinitions="Auto,*" RowSpacing="8">
-        <TextBlock Text="PACKET QUEUE"
-                   FontSize="10"
-                   FontWeight="Bold"
-                   Foreground="{DynamicResource SkuaMutedTextBrush}" />
-        <Border Grid.Row="1" Classes="list-frame">
-          <ListBox ItemsSource="{Binding Packets}"
-                   SelectedIndex="{Binding SelectedIndex}"
-                   Classes="embedded" />
-        </Border>
-      </Grid>
-    </Border>
 
-    <!-- Right: Spammer Controls Card -->
-    <Border Grid.Row="0"
-            Grid.Column="1"
-            Background="{DynamicResource SkuaSurfaceBrush}"
-            BorderBrush="{DynamicResource SkuaBorderBrush}"
-            BorderThickness="1"
-            CornerRadius="8"
-            Padding="12">
-      <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Spacing="8">
-          <TextBlock Text="CONTROLS"
-                     FontSize="10"
-                     FontWeight="Bold"
-                     Foreground="{DynamicResource SkuaMutedTextBrush}" />
-          <Button Classes="skua-button"
-                  Content="Add Packet"
-                  HorizontalAlignment="Stretch"
-                  Command="{Binding AddPacketCommand}" />
-          <Button Classes="skua-button"
-                  Content="Remove Selected"
-                  HorizontalAlignment="Stretch"
-                  Command="{Binding RemovePacketCommand}" />
-          <Button Classes="skua-button outline"
-                  Content="Clear All"
-                  HorizontalAlignment="Stretch"
-                  Command="{Binding ClearPacketsCommand}" />
-          
-          <Separator Margin="0,4" Background="{DynamicResource SkuaBorderBrush}" />
-          
-          <Button Classes="skua-button"
-                  Content="Load List"
-                  HorizontalAlignment="Stretch"
-                  Command="{Binding LoadSpammerCommand}" />
-          <Button Classes="skua-button"
-                  Content="Save List"
-                  HorizontalAlignment="Stretch"
-                  Command="{Binding SaveSpammerCommand}" />
-
-          <Separator Margin="0,4" Background="{DynamicResource SkuaBorderBrush}" />
-
-          <TextBlock Text="Spam Delay (ms)"
-                     FontSize="11"
-                     Foreground="{DynamicResource SkuaMutedTextBrush}" />
-          <TextBox Text="{Binding SpamDelay}" />
-
-          <CheckBox Content="Send to Client"
-                    IsChecked="{Binding SendToClient}"
-                    Margin="0,4,0,0" />
-
-          <Button Classes="skua-button skua-primary"
-                  Content="Start / Stop"
-                  HorizontalAlignment="Stretch"
-                  Height="36"
-                  Command="{Binding ToggleSpammerCommand}" />
+  <Grid Margin="12" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+    <!-- Start/stop, delay, target and state -->
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="8" Margin="0,0,0,2">
+      <Button Grid.Column="0"
+              Classes="skua-button w140"
+              Classes.skua-danger="{Binding SpammerCommand.IsRunning}"
+              Classes.skua-primary="{Binding !SpammerCommand.IsRunning}"
+              Command="{Binding ToggleSpammerCommand}">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <materialIcons:MaterialIcon Kind="PlayCircleOutline" Width="15" Height="15" IsVisible="{Binding !SpammerCommand.IsRunning}" />
+          <materialIcons:MaterialIcon Kind="StopCircleOutline" Width="15" Height="15" IsVisible="{Binding SpammerCommand.IsRunning}" />
+          <TextBlock Text="Start" VerticalAlignment="Center" IsVisible="{Binding !SpammerCommand.IsRunning}" />
+          <TextBlock Text="Stop" VerticalAlignment="Center" IsVisible="{Binding SpammerCommand.IsRunning}" />
         </StackPanel>
-      </ScrollViewer>
-    </Border>
+      </Button>
+      <TextBlock Grid.Column="1" Text="Every" Margin="4,0,0,0" VerticalAlignment="Center" />
+      <TextBox Grid.Column="2" Width="104" Text="{Binding SpamDelay}" ToolTip.Tip="Delay between packets">
+        <TextBox.InnerRightContent>
+          <TextBlock Text="ms" FontSize="11" Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{DynamicResource SkuaMutedTextBrush}" />
+        </TextBox.InnerRightContent>
+      </TextBox>
+      <ToggleSwitch Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center" OnContent="" OffContent=""
+                    IsChecked="{Binding SendToClient}" ToolTip.Tip="Send the packets to the game client instead of the server" />
+      <TextBlock Grid.Column="4" Text="Send to client" VerticalAlignment="Center" />
+      <Border Grid.Column="6" Classes="chip success" IsVisible="{Binding SpammerCommand.IsRunning}">
+        <StackPanel Orientation="Horizontal" Spacing="5">
+          <Ellipse Width="6" Height="6" Fill="{DynamicResource SkuaSuccessBrush}" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding RunStatus}" />
+        </StackPanel>
+      </Border>
+    </Grid>
 
-    <!-- Bottom: Packet Input & Send Card -->
-    <Border Grid.Row="1"
-            Grid.Column="0"
-            Grid.ColumnSpan="2"
-            Background="{DynamicResource SkuaSurfaceBrush}"
-            BorderBrush="{DynamicResource SkuaBorderBrush}"
-            BorderThickness="1"
-            CornerRadius="8"
-            Padding="10">
-      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-        <TextBox Grid.Column="0"
-                 Watermark="Enter packet string to send..."
-                 Text="{Binding PacketText}" />
-        <Button Grid.Column="1"
-                Classes="skua-button skua-primary"
-                MinWidth="100"
-                Content="Send Now"
-                Command="{Binding SendPacketCommand}" />
-      </Grid>
-    </Border>
+    <!-- Queue header -->
+    <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="6">
+      <TextBlock Grid.Column="0" Classes="section-label" Text="QUEUE" />
+      <Border Grid.Column="1" Classes="count">
+        <TextBlock Text="{Binding Packets.Count}" />
+      </Border>
+      <Button Grid.Column="3" Classes="skua-button small w84" Command="{Binding LoadSpammerCommand}" ToolTip.Tip="Replace the queue with a saved list">
+        <StackPanel Orientation="Horizontal" Spacing="5">
+          <materialIcons:MaterialIcon Kind="FolderOpenOutline" Width="14" Height="14" />
+          <TextBlock Text="Load" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <Button Grid.Column="4" Classes="skua-button small w84" Command="{Binding SaveSpammerCommand}">
+        <StackPanel Orientation="Horizontal" Spacing="5">
+          <materialIcons:MaterialIcon Kind="ContentSave" Width="14" Height="14" />
+          <TextBlock Text="Save" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <Button Grid.Column="5" Classes="skua-button small skua-danger-soft w84" Command="{Binding ClearPacketsCommand}">
+        <StackPanel Orientation="Horizontal" Spacing="5">
+          <materialIcons:MaterialIcon Kind="TrashCanOutline" Width="14" Height="14" />
+          <TextBlock Text="Clear" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+    </Grid>
+
+    <!-- Queue: numbered rows, remove on the hovered or selected row (or Delete) -->
+    <ListBox x:Name="PacketsListBox"
+             Grid.Row="2"
+             ItemsSource="{Binding Packets}"
+             SelectedIndex="{Binding SelectedIndex}"
+             ContainerPrepared="PacketsListBox_ContainerPrepared"
+             ContainerIndexChanged="PacketsListBox_ContainerIndexChanged"
+             Padding="4"
+             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+             FontFamily="JetBrains Mono,Consolas,Courier New,monospace"
+             FontSize="11"
+             Foreground="{DynamicResource SkuaTextBrush}">
+      <ListBox.KeyBindings>
+        <KeyBinding Gesture="Delete" Command="{Binding RemovePacketCommand}" />
+      </ListBox.KeyBindings>
+      <ListBox.Styles>
+        <Style Selector="ListBoxItem">
+          <Setter Property="Padding" Value="8,2,4,2" />
+          <Setter Property="MinHeight" Value="30" />
+          <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="ListBoxItem Button.row-remove">
+          <Setter Property="IsVisible" Value="False" />
+        </Style>
+        <Style Selector="ListBoxItem:pointerover Button.row-remove, ListBoxItem:selected Button.row-remove">
+          <Setter Property="IsVisible" Value="True" />
+        </Style>
+      </ListBox.Styles>
+      <ListBox.ItemTemplate>
+        <DataTemplate>
+          <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="8">
+            <TextBlock Grid.Column="0" Text="{Binding $parent[ListBoxItem].Tag}" TextAlignment="Right" VerticalAlignment="Center"
+                       Foreground="{DynamicResource SkuaMutedTextBrush}" />
+            <TextBlock Grid.Column="1" Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding}" />
+            <Button Grid.Column="2" Classes="danger-icon row-remove" ToolTip.Tip="Remove from the queue" Click="RemovePacket_Click">
+              <materialIcons:MaterialIcon Kind="Close" Width="14" Height="14" />
+            </Button>
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <!-- Composer -->
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+      <TextBox Grid.Column="0" Watermark="%xt%zm%...  packet to add or send" Text="{Binding PacketText}"
+               FontFamily="JetBrains Mono,Consolas,Courier New,monospace" FontSize="12" />
+      <Button Grid.Column="1" Classes="skua-button w84" Command="{Binding AddPacketCommand}" ToolTip.Tip="Add to the end of the queue">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <materialIcons:MaterialIcon Kind="Plus" Width="15" Height="15" />
+          <TextBlock Text="Add" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+      <Button Grid.Column="2" Classes="skua-button skua-primary w112" Command="{Binding SendPacketCommand}" ToolTip.Tip="Send once now">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <materialIcons:MaterialIcon Kind="SendOutline" Width="15" Height="15" />
+          <TextBlock Text="Send now" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+    </Grid>
   </Grid>
 </UserControl>
