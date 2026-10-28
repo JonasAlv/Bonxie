@@ -1361,6 +1361,8 @@ public partial class TabbedHostWindow : Window
 
     private sealed class ArmyClientLocation
     {
+        public ArmyClientLocation() { }
+
         public string Map { get; set; } = "";
         public string Room { get; set; } = "";
         public string Cell { get; set; } = "Enter";
