@@ -6,8 +6,8 @@ using Skua.Core.Models.Servers;
 using Skua.Shared.Avalonia.ViewModels;
 using Skua.Shared.Avalonia.ViewModels.Options;
 using System;
-using System.Collections.ObjectModel;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 
 namespace Skua.App.Avalonia.ViewModels.Options;
@@ -19,21 +19,36 @@ public class GameOptionsViewModel : BotControlViewModelBase
         "Artix", "Twilly", "Galanoth", "Gravelyn", "Safiria", "Sir Ver", "Sepulchure", "Yorumi", "Alteon", "Espada", "Yokai", "Zorbot"
     };
 
+    // Sections by IScriptOption property name; options not listed go to Gameplay.
+    private static readonly string[] VisualsOptions = { "LagKiller", "HidePlayers", "OptimizePlayers", "DisableFX", "DisableCollisions", "ShowFPS", "SetFPS" };
+    private static readonly string[] CombatOptions = { "AggroMonsters", "AggroAllMonsters", "AttackWithoutTarget", "InfiniteRange", "Magnetise", "HuntDelay", "HuntBuffer", "RestPackets", "SafeTimings" };
+    private static readonly string[] DropsOptions = { "AcceptACDrops", "AcceptAllDrops", "RejectAllDrops" };
+    private static readonly string[] ReloginOptions = { "AutoRelogin", "AutoReloginAny", "RetryRelogin", "SafeRelogin", "ReloginTries", "LoginTimeout" };
+
     private readonly IScriptServers _servers;
     private readonly IScriptOption _options;
+    private readonly CBOChoiceOptionItemViewModel _reloginServerItem;
+    private readonly List<string> _reloginServerNames;
 
     public GameOptionsViewModel(List<DisplayOptionItemViewModelBase> gameOptions, IScriptServers servers, IScriptOption options)
-        : base("Game Options", 640, 720)
+        : base("Game Options", 612, 720)
     {
         _servers = servers;
         _options = options;
         _selectedServer = !string.IsNullOrWhiteSpace(options.ReloginServer) ? options.ReloginServer : "Twilly";
         GameOptions = gameOptions;
-        FilteredGameOptions = new ObservableCollection<DisplayOptionItemViewModelBase>(SortOptions(gameOptions));
         ResetOptionsCommand = new RelayCommand(_options.Reset);
         ResetDefaultOptionsCommand = new RelayCommand(_options.ResetToDefault);
         SaveOptionsCommand = new RelayCommand(_options.Save);
+
+        _reloginServerNames = ServersList;
+        _reloginServerItem = new CBOChoiceOptionItemViewModel("Relogin Server", "Server to log back in to", "ReloginServer",
+            _reloginServerNames, Math.Max(0, _reloginServerNames.IndexOf(SelectedServer ?? string.Empty)));
+        _reloginServerItem.PropertyChanged += ReloginServerItem_PropertyChanged;
+
         BuildGroups();
+        Sections = new List<OptionGroupViewModel> { OptionGroupViewModel.CreateAll(OptionGroups) }.Concat(OptionGroups).ToList();
+        _selectedSection = Sections[0];
     }
 
     protected override void OnActivated()
@@ -44,11 +59,13 @@ public class GameOptionsViewModel : BotControlViewModelBase
     }
 
     public List<DisplayOptionItemViewModelBase> GameOptions { get; }
-    public ObservableCollection<DisplayOptionItemViewModelBase> FilteredGameOptions { get; }
     public List<OptionGroupViewModel> OptionGroups { get; private set; } = new();
 
+    // The chip row: "All", then each group
+    public List<OptionGroupViewModel> Sections { get; }
+
     private string _searchText = string.Empty;
-    private string _selectedCategory = "All";
+    private OptionGroupViewModel _selectedSection;
 
     public string SearchText
     {
@@ -56,137 +73,57 @@ public class GameOptionsViewModel : BotControlViewModelBase
         set
         {
             if (SetProperty(ref _searchText, value))
-            {
-                ApplySearch();
                 OnPropertyChanged(nameof(FilteredGroups));
-            }
         }
     }
 
-    public string SelectedCategory
+    public OptionGroupViewModel SelectedSection
     {
-        get => _selectedCategory;
+        get => _selectedSection;
         set
         {
-            if (SetProperty(ref _selectedCategory, value))
+            // The chip list clears its selection when it loses its items; keep the last section instead
+            if (value is not null && SetProperty(ref _selectedSection, value))
+            {
                 OnPropertyChanged(nameof(FilteredGroups));
-        }
-    }
-
-    public List<string> Categories { get; } = new()
-    {
-        "All",
-        "Performance & Visuals",
-        "Combat & Targeting",
-        "Drops & Looting",
-        "Auto-Relogin & Network",
-        "Gameplay & Character"
-    };
-
-    public IEnumerable<OptionGroupViewModel> FilteredGroups
-    {
-        get
-        {
-            IEnumerable<OptionGroupViewModel> groups = OptionGroups;
-            if (_selectedCategory != "All")
-            {
-                groups = groups.Where(g => g.Title.Equals(_selectedCategory, StringComparison.OrdinalIgnoreCase));
+                OnPropertyChanged(nameof(ShowSectionHeaders));
             }
-
-            if (string.IsNullOrWhiteSpace(_searchText))
-                return groups;
-
-            return groups.Select(g => new OptionGroupViewModel
-            {
-                Title = g.Title,
-                Icon = g.Icon,
-                Description = g.Description,
-                Items = g.Items.Where(i => i.Content.Contains(_searchText, StringComparison.OrdinalIgnoreCase) || 
-                                           (i.Description?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false)).ToList()
-            }).Where(g => g.Items.Count > 0);
         }
     }
+
+    // Headers only when several sections are shown
+    public bool ShowSectionHeaders => _selectedSection.IsAll;
+
+    public IEnumerable<OptionGroupViewModel> FilteredGroups =>
+        OptionGroupViewModel.Filter(_selectedSection.IsAll ? OptionGroups : new[] { _selectedSection }, _searchText);
 
     private void BuildGroups()
     {
-        var visuals = GameOptions.Where(i =>
-            i.Content.Contains("Lag", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Animation", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Player", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("FPS", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Collision", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Reload Map", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Upgrade", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Staff", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("FX", StringComparison.OrdinalIgnoreCase)
-        ).ToList();
+        string? BindingOf(DisplayOptionItemViewModelBase item) => (item as IBindingOptionItem)?.Binding;
+        List<DisplayOptionItemViewModelBase> InSection(string[] names) =>
+            names.Select(n => GameOptions.FirstOrDefault(i => BindingOf(i) == n)).OfType<DisplayOptionItemViewModelBase>().ToList();
 
-        var combat = GameOptions.Where(i =>
-            i.Content.Contains("Aggro", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Target", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Attack", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Skill", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Range", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Magnet", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Rest", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Hunt", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Timing", StringComparison.OrdinalIgnoreCase)
-        ).ToList();
+        // Name colours and Reload Map aren't script options; they sit with the visuals
+        List<DisplayOptionItemViewModelBase> visuals = InSection(VisualsOptions)
+            .Concat(GameOptions.Where(i => BindingOf(i) is null))
+            .ToList();
+        List<DisplayOptionItemViewModelBase> combat = InSection(CombatOptions);
+        List<DisplayOptionItemViewModelBase> drops = InSection(DropsOptions);
+        List<DisplayOptionItemViewModelBase> relogin = InSection(ReloginOptions);
+        relogin.Insert(0, _reloginServerItem);
 
-        var drops = GameOptions.Where(i =>
-            i.Content.Contains("Drop", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Loot", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Reject", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Accept", StringComparison.OrdinalIgnoreCase)
-        ).ToList();
-
-        var relogin = GameOptions.Where(i =>
-            i.Content.Contains("Relogin", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Login", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Retry", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Server", StringComparison.OrdinalIgnoreCase)
-        ).ToList();
-
-        var used = new HashSet<DisplayOptionItemViewModelBase>(visuals.Concat(combat).Concat(drops).Concat(relogin));
-        var gameplay = GameOptions.Where(i => !used.Contains(i)).ToList();
+        HashSet<DisplayOptionItemViewModelBase> used = new(visuals.Concat(combat).Concat(drops).Concat(relogin));
+        List<DisplayOptionItemViewModelBase> gameplay = GameOptions.Where(i => !used.Contains(i))
+            .OrderBy(i => i.Content, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         OptionGroups = new List<OptionGroupViewModel>
         {
-            new()
-            {
-                Title = "Performance & Visuals",
-                Icon = "Speedometer",
-                Description = "Lag killer, animation toggles, player visibility, and frame rate",
-                Items = visuals
-            },
-            new()
-            {
-                Title = "Combat & Targeting",
-                Icon = "SwordCross",
-                Description = "Monster provocation, infinite range, skill timing, and auto target",
-                Items = combat
-            },
-            new()
-            {
-                Title = "Drops & Looting",
-                Icon = "PackageVariantClosed",
-                Description = "AC items pickup, auto drops acceptance, and drop delay",
-                Items = drops
-            },
-            new()
-            {
-                Title = "Auto-Relogin & Network",
-                Icon = "ServerNetwork",
-                Description = "Automatic server reconnection, retry limits, and login timeouts",
-                Items = relogin
-            },
-            new()
-            {
-                Title = "Gameplay & Character",
-                Icon = "AccountCogOutline",
-                Description = "Walk speed, custom name/guild tags, and miscellaneous preferences",
-                Items = gameplay
-            }
+            new() { Title = "Performance & Visuals", ShortTitle = "Visuals", Icon = "Speedometer", Items = visuals },
+            new() { Title = "Combat & Targeting", ShortTitle = "Combat", Icon = "SwordCross", Items = combat },
+            new() { Title = "Drops & Looting", ShortTitle = "Drops", Icon = "PackageVariantClosed", Items = drops },
+            new() { Title = "Auto-Relogin & Network", ShortTitle = "Relogin", Icon = "ServerNetwork", Items = relogin },
+            new() { Title = "Gameplay & Character", ShortTitle = "Gameplay", Icon = "AccountCogOutline", Items = gameplay }
         };
     }
 
@@ -231,14 +168,27 @@ public class GameOptionsViewModel : BotControlViewModelBase
         get => _selectedServer ?? _options.ReloginServer ?? "Twilly";
         set
         {
-            if (SetProperty(ref _selectedServer, value) && value is not null && _options.ReloginServer != value)
-                _options.ReloginServer = value;
+            if (SetProperty(ref _selectedServer, value) && value is not null)
+            {
+                if (_options.ReloginServer != value)
+                    _options.ReloginServer = value;
+                int index = _reloginServerNames.FindIndex(n => string.Equals(n, value, StringComparison.OrdinalIgnoreCase));
+                if (index >= 0 && !Equals(_reloginServerItem.Value, index))
+                    _reloginServerItem.Value = index;
+            }
         }
     }
 
     public IRelayCommand ResetOptionsCommand { get; }
     public IRelayCommand ResetDefaultOptionsCommand { get; }
     public IRelayCommand SaveOptionsCommand { get; }
+
+    private void ReloginServerItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DisplayOptionItemViewModelBase.Value)
+            && _reloginServerItem.Value is int index && index >= 0 && index < _reloginServerNames.Count)
+            SelectedServer = _reloginServerNames[index];
+    }
 
     private void ServersChanged(GameOptionsViewModel recipient, PropertyChangedMessage<List<Server>> message)
     {
@@ -250,31 +200,5 @@ public class GameOptionsViewModel : BotControlViewModelBase
     {
         if (message.PropertyName == nameof(IScriptOption.ReloginServer) && message.NewValue != recipient.SelectedServer)
             recipient.SelectedServer = message.NewValue;
-    }
-
-    private void ApplySearch()
-    {
-        IEnumerable<DisplayOptionItemViewModelBase> filtered = GameOptions.Where(MatchesSearch);
-        List<DisplayOptionItemViewModelBase> sorted = SortOptions(filtered).ToList();
-        FilteredGameOptions.Clear();
-        foreach (DisplayOptionItemViewModelBase option in sorted)
-            FilteredGameOptions.Add(option);
-    }
-
-    private bool MatchesSearch(DisplayOptionItemViewModelBase option)
-    {
-        string trimmedSearch = SearchText.Trim();
-
-        if (string.IsNullOrEmpty(trimmedSearch))
-            return true;
-
-        return option.Content?.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase) == true;
-    }
-
-    private static IEnumerable<DisplayOptionItemViewModelBase> SortOptions(IEnumerable<DisplayOptionItemViewModelBase> options)
-    {
-        return options
-            .OrderBy(o => o.Tag)
-            .ThenBy(o => o.Content, StringComparer.OrdinalIgnoreCase);
     }
 }
