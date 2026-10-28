@@ -1015,25 +1015,46 @@ public sealed partial class AccountManagerViewModel : BotControlViewModelBase
 
     private async Task _MeasureServerPings(List<Server> servers)
     {
-        const int TimeoutMs = 2000;
+        const int TimeoutMs = 1500;
+        const int SampleCount = 3;
         const long FailedPing = 9999;
 
         List<Task> pingTasks = servers.Select(server => Task.Run(async () =>
         {
-            using (System.Net.NetworkInformation.Ping pinger = new())
+            if (string.IsNullOrWhiteSpace(server.IP) || server.Port <= 0 || server.Port > 65535)
+            {
+                server.Ping = FailedPing;
+                return;
+            }
+
+            List<double> samples = new(SampleCount);
+
+            for (int sample = 0; sample < SampleCount; sample++)
             {
                 try
                 {
-                    System.Net.NetworkInformation.PingReply reply = await pinger.SendPingAsync(server.IP, TimeoutMs);
-                    server.Ping = reply.Status == System.Net.NetworkInformation.IPStatus.Success
-                        ? reply.RoundtripTime
-                        : FailedPing;
+                    using System.Net.Sockets.TcpClient client = new();
+                    Stopwatch stopwatch = Stopwatch.StartNew();
+                    Task connectTask = client.ConnectAsync(server.IP, server.Port);
+                    await connectTask.WaitAsync(TimeSpan.FromMilliseconds(TimeoutMs));
+                    stopwatch.Stop();
+                    samples.Add(stopwatch.Elapsed.TotalMilliseconds);
                 }
                 catch
                 {
-                    server.Ping = FailedPing;
+                    // A failed or timed-out connection is not a valid latency sample.
                 }
             }
+
+            if (samples.Count == 0)
+            {
+                server.Ping = FailedPing;
+                return;
+            }
+
+            samples.Sort();
+            double median = samples[samples.Count / 2];
+            server.Ping = (long)Math.Round(median, MidpointRounding.AwayFromZero);
         })).ToList();
 
         await Task.WhenAll(pingTasks);
