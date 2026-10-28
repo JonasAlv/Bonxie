@@ -537,7 +537,7 @@ public partial class MainWindow : Window
                         string[] lines = System.IO.File.ReadAllLines(tempFile);
                         string map = lines.Length > 0 ? lines[0].Trim() : "";
                         string cell = lines.Length > 1 && !string.IsNullOrWhiteSpace(lines[1]) ? lines[1].Trim() : "Enter";
-                        string pad = "Spawn";
+                        string pad = lines.Length > 2 && !string.IsNullOrWhiteSpace(lines[2]) ? lines[2].Trim() : "Spawn";
                         
                         if (cell.Contains(','))
                         {
