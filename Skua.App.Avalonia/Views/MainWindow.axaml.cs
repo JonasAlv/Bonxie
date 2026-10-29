@@ -353,34 +353,27 @@ public partial class MainWindow : Window
                 if (!map.Loaded || string.IsNullOrWhiteSpace(map.Name) || string.IsNullOrWhiteSpace(player.Cell))
                     return;
 
-                // SmartFox's active room name contains the actual AQW room suffix.
-                // world.curRoom is an internal area ID and must not be used as the room number.
+                // Get the actual room name from SmartFox; world.curRoom is only an internal area ID.
                 string room = string.Empty;
                 try
                 {
-                    int activeRoomId = _flash.GetGameObject<int>("sfc.activeRoomId");
-                    if (activeRoomId > 0)
+                    string? activeRoomJson = _flash.CallGameFunction("sfc.getActiveRoom");
+                    if (!string.IsNullOrWhiteSpace(activeRoomJson))
                     {
-                        string? activeRoomJson = _flash.GetGameObject($"sfc.roomList[\\"{activeRoomId}\\"]");
-                        if (!string.IsNullOrWhiteSpace(activeRoomJson))
-                        {
-                            using JsonDocument activeRoomDocument = JsonDocument.Parse(activeRoomJson);
-                            JsonElement activeRoom = activeRoomDocument.RootElement;
-                            string? activeRoomName = activeRoom.ValueKind == JsonValueKind.String
-                                ? activeRoom.GetString()
-                                : activeRoom.ValueKind == JsonValueKind.Object && activeRoom.TryGetProperty("name", out JsonElement nameElement)
-                                    ? nameElement.GetString()
-                                    : null;
+                        using JsonDocument activeRoomDocument = JsonDocument.Parse(activeRoomJson);
+                        JsonElement activeRoom = activeRoomDocument.RootElement;
+                        string? activeRoomName = activeRoom.ValueKind == JsonValueKind.Object && activeRoom.TryGetProperty("name", out JsonElement nameElement)
+                            ? nameElement.GetString()
+                            : null;
 
-                            if (!string.IsNullOrWhiteSpace(activeRoomName))
+                        if (!string.IsNullOrWhiteSpace(activeRoomName))
+                        {
+                            int separatorIndex = activeRoomName.LastIndexOf('-');
+                            if (separatorIndex >= 0 && separatorIndex < activeRoomName.Length - 1)
                             {
-                                int separatorIndex = activeRoomName.LastIndexOf('-');
-                                if (separatorIndex >= 0 && separatorIndex < activeRoomName.Length - 1)
-                                {
-                                    string roomSuffix = activeRoomName[(separatorIndex + 1)..];
-                                    if (roomSuffix.All(char.IsDigit))
-                                        room = roomSuffix;
-                                }
+                                string roomSuffix = activeRoomName[(separatorIndex + 1)..];
+                                if (roomSuffix.All(char.IsDigit))
+                                    room = roomSuffix;
                             }
                         }
                     }
