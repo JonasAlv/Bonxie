@@ -357,8 +357,9 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
         }
     }
 
-    // The relogin watchdog (Application Options); read only when a disconnect would trigger it
-    private bool WatchdogEnabled => _settingsService.Get("ReloginWatchdog", true);
+    // The relogin watchdog (Application Options); read only when a disconnect would trigger it. Not the
+    // default-value overload: it turns a saved false into the default. Unsaved, the model default is true.
+    private bool WatchdogEnabled => _settingsService.Get<bool>("ReloginWatchdog");
 
     private void CheckOptions()
     {
