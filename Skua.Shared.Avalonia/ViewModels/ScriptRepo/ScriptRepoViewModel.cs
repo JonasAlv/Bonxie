@@ -58,6 +58,7 @@ public partial class ScriptRepoViewModel : BotControlViewModelBase
     {
         if (_isLoadingInitial) return;
         _isLoadingInitial = true;
+        IsLoadingScripts = true;
         IsBusy = true;
         try
         {
@@ -112,6 +113,10 @@ public partial class ScriptRepoViewModel : BotControlViewModelBase
 
     [ObservableProperty]
     private string _progressReportMessage = string.Empty;
+
+    // True while the list is fetched or rebuilt, so an empty list shows "Loading" instead of "No scripts found"
+    [ObservableProperty]
+    private bool _isLoadingScripts;
 
     [ObservableProperty]
     private string _sortBy = "Name";
@@ -417,6 +422,7 @@ public partial class ScriptRepoViewModel : BotControlViewModelBase
         if (!await _refreshSemaphore.WaitAsync(0))
             return;
 
+        IsLoadingScripts = true;
         try
         {
             List<ScriptInfoViewModel> scriptViewModels = await Task.Run(() =>
@@ -628,6 +634,7 @@ public partial class ScriptRepoViewModel : BotControlViewModelBase
         }
         finally
         {
+            IsLoadingScripts = false;
             _refreshSemaphore.Release();
         }
     }

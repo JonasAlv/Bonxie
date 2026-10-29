@@ -231,20 +231,34 @@
                         </ListBox.ItemTemplate>
                     </ListBox>
 
+                    <!-- Still loading the list -->
+                    <Panel IsVisible="{Binding IsLoadingScripts}">
+                        <StackPanel Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    IsVisible="{Binding !FilteredScripts.Count}">
+                            <materialIcons:MaterialIcon Kind="CloudDownloadOutline" Width="40" Height="40" Foreground="{DynamicResource SkuaMutedTextBrush}" />
+                            <TextBlock Text="Loading scripts..." FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" />
+                            <ProgressBar IsIndeterminate="True" Height="4" Width="200" HorizontalAlignment="Center" />
+                            <TextBlock Text="Getting the script list, this can take a few seconds." FontSize="12" Foreground="{DynamicResource SkuaMutedTextBrush}"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Panel>
+
                     <!-- Nothing matches -->
-                    <StackPanel Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                IsVisible="{Binding !FilteredScripts.Count}">
-                        <materialIcons:MaterialIcon Kind="FolderSearchOutline" Width="40" Height="40" Foreground="{DynamicResource SkuaMutedTextBrush}" />
-                        <TextBlock Text="No scripts found" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" />
-                        <TextBlock Text="Nothing matches the search or category." FontSize="12" Foreground="{DynamicResource SkuaMutedTextBrush}"
-                                   HorizontalAlignment="Center" />
-                        <Button Classes="skua-button w140" HorizontalAlignment="Center" Command="{Binding ClearSearchCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <materialIcons:MaterialIcon Kind="FilterRemoveOutline" Width="15" Height="15" />
-                                <TextBlock Text="Clear search" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
+                    <Panel IsVisible="{Binding !IsLoadingScripts}">
+                        <StackPanel Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                    IsVisible="{Binding !FilteredScripts.Count}">
+                            <materialIcons:MaterialIcon Kind="FolderSearchOutline" Width="40" Height="40" Foreground="{DynamicResource SkuaMutedTextBrush}" />
+                            <TextBlock Text="No scripts found" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" />
+                            <TextBlock Text="Nothing matches the search or category." FontSize="12" Foreground="{DynamicResource SkuaMutedTextBrush}"
+                                       HorizontalAlignment="Center" />
+                            <Button Classes="skua-button w140" HorizontalAlignment="Center" Command="{Binding ClearSearchCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <materialIcons:MaterialIcon Kind="FilterRemoveOutline" Width="15" Height="15" />
+                                    <TextBlock Text="Clear search" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Panel>
                 </Grid>
             </Border>
 
