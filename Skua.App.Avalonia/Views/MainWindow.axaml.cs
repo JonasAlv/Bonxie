@@ -351,9 +351,11 @@ public partial class MainWindow : Window
                 if (!map.Loaded || string.IsNullOrWhiteSpace(map.Name) || string.IsNullOrWhiteSpace(player.Cell))
                     return;
 
-                string room = options.PrivateRooms
-                    ? (options.PrivateNumber > 0 ? options.PrivateNumber.ToString() : "100000")
-                    : string.Empty;
+                // Keep the configured private-room number available to Army Control even if
+                // the Private Rooms toggle is changed after the client has joined.
+                string room = options.PrivateNumber > 0
+                    ? options.PrivateNumber.ToString()
+                    : (options.PrivateRooms ? "100000" : string.Empty);
                 string locationFile = System.IO.Path.Combine(dir, $"{Environment.ProcessId}.location.json");
                 string temporaryFile = locationFile + ".tmp";
                 string locationJson = JsonSerializer.Serialize(new
