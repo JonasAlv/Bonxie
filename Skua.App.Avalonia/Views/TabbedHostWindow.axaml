@@ -207,15 +207,17 @@
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <Separator />
-                                <MenuItem Header="Jump All to Map..." Click="MenuItem_JumpMap_Click">
+                                <MenuItem Header="Map Travel">
                                     <MenuItem.Icon>
                                         <materialIcons:MaterialIcon Kind="MapMarkerOutline" Width="14" Height="14" />
                                     </MenuItem.Icon>
+                                    <MenuItem Header="Jump All to Map..." Click="MenuItem_JumpMap_Click" />
+                                    <MenuItem Header="Jump to Map History..." Click="MenuItem_JumpMapHistory_Click" />
+                                    <Separator />
+                                    <MenuItem Header="Jump to Map Preset..." Click="MenuItem_JumpMapPreset_Click" />
+                                    <MenuItem Header="Manage Map Presets..." Click="MenuItem_ManageJumpMapPresets_Click" />
+                                    <MenuItem Header="Create Map Preset..." Click="MenuItem_SaveJumpMapPreset_Click" />
                                 </MenuItem>
-                                <MenuItem Header="Jump to Map History..." Click="MenuItem_JumpMapHistory_Click" />
-                                <MenuItem Header="Jump to Map Preset..." Click="MenuItem_JumpMapPreset_Click" />
-                                <MenuItem Header="Manage Map Presets..." Click="MenuItem_ManageJumpMapPresets_Click" />
-                                <MenuItem Header="Create Map Preset..." Click="MenuItem_SaveJumpMapPreset_Click" />
                                 <MenuItem Header="Jump All to Player..." Click="MenuItem_JumpPlayer_Click">
                                     <MenuItem.Icon>
                                         <materialIcons:MaterialIcon Kind="AccountArrowRightOutline" Width="14" Height="14" />
