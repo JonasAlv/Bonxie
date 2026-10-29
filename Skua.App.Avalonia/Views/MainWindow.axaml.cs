@@ -88,6 +88,7 @@ public partial class MainWindow : Window
     private const int WM_SKUA_GRIDVIEW = 0x0400 + 444;
     private const int WM_SKUA_AUTO_ATTACK = 0x0400 + 459;
     private const int WM_SKUA_OPEN_BANK = 0x0400 + 460;
+    private const int WM_SKUA_CHANGE_SERVER = 0x0400 + 465;
 
     private static readonly TimeSpan MetricRefreshInterval = TimeSpan.FromSeconds(1);
 
@@ -525,6 +526,27 @@ public partial class MainWindow : Window
         else if (uMsg == 0x0400 + 448) // WM_SKUA_LOGOUT
         {
             Ioc.Default.GetRequiredService<IScriptServers>().Logout();
+            return IntPtr.Zero;
+        }
+        else if (uMsg == WM_SKUA_CHANGE_SERVER)
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    string tempFile = Path.Combine(Path.GetTempPath(), "skua_global_change_server.txt");
+                    if (!System.IO.File.Exists(tempFile))
+                        return;
+
+                    string targetServer = System.IO.File.ReadAllText(tempFile).Trim();
+                    if (!string.IsNullOrWhiteSpace(targetServer))
+                        Ioc.Default.GetRequiredService<IScriptServers>().Relogin(targetServer);
+                }
+                catch (Exception ex)
+                {
+                    Trace.WriteLine($"Army Control server change failed: {ex.GetType().Name}: {ex.Message}");
+                }
+            });
             return IntPtr.Zero;
         }
         else if (uMsg == WM_SKUA_JUMP_MAP)
