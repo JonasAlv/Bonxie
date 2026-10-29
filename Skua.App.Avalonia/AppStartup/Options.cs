@@ -107,7 +107,7 @@ internal class Options
                     return;
                 Ioc.Default.GetRequiredService<ISettingsService>().Set("ReloginTryDelay", result);
             }), s.GetRequiredService<ISettingsService>().Get<int>("ReloginTryDelay")),
-            CreateSettingOptionItem<bool>("Relogin Watchdog", "Watch for unexpected disconnections, even with no script running, and relog when Auto Relogin (Game Options) is on. Off leaves relogs to kicks and server logouts", "ReloginWatchdog"),
+            CreateSettingOptionItem<bool>("Relogin Watchdog", "Detect unexpected disconnections, even with no script running, and relog when Auto Relogin (Game Options) is on. Off disables watchdog-based disconnect detection; kick, stuck-loading, and server-logout recovery still follow Auto Relogin.", "ReloginWatchdog"),
             new CommandOptionItemViewModel<IRelayCommand>("Clear Flash Cache", "ClearFlashCache", new RelayCommand(() =>
             {
                 string flash = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Adobe", "Flash Player");
