@@ -361,7 +361,7 @@ public partial class MainWindow : Window
                     int activeRoomId = _flash.GetGameObject<int>("sfc.activeRoomId");
                     if (activeRoomId > 0)
                     {
-                        string? activeRoomJson = _flash.GetGameObject($"sfc.roomList[\\\"{activeRoomId}\\\"]");
+                        string? activeRoomJson = _flash.GetGameObject($"sfc.roomList[\\"{activeRoomId}\\"]");
                         if (!string.IsNullOrWhiteSpace(activeRoomJson))
                         {
                             using JsonDocument activeRoomDocument = JsonDocument.Parse(activeRoomJson);
