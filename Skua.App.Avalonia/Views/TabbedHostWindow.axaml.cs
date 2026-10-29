@@ -2001,8 +2001,99 @@ public partial class TabbedHostWindow : Window
     }
 
     private const int WM_SKUA_JUMP_HOUSE = 0x0400 + 464;
+    private const int WM_SKUA_CHANGE_SERVER = 0x0400 + 465;
     private const int WM_SKUA_ACCEPT_QUEST = 0x0400 + 458;
     private string _lastAcceptQuestId = "";
+
+    private async void MenuItem_ChangeServerAll_Click(object? sender, RoutedEventArgs e)
+    {
+        List<string> serverNames;
+        try
+        {
+            IScriptServers? scriptServers = Ioc.Default.GetService<IScriptServers>();
+            if (scriptServers is null)
+            {
+                Ioc.Default.GetService<IDialogService>()?.ShowMessageBox("The server service is unavailable. Please restart VibeSkua and try again.", "Change Server for All");
+                return;
+            }
+
+            List<Skua.Core.Models.Servers.Server> servers = await scriptServers.GetServers(true);
+            serverNames = servers
+                .Where(server => server.Online && !string.IsNullOrWhiteSpace(server.Name) && !string.IsNullOrWhiteSpace(server.IP))
+                .Select(server => server.Name.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to load Army Control servers: {ex.GetType().Name}: {ex.Message}");
+            Ioc.Default.GetService<IDialogService>()?.ShowMessageBox("Could not load the current server list. Check your connection and try again.", "Change Server for All");
+            return;
+        }
+
+        if (serverNames.Count == 0)
+        {
+            Ioc.Default.GetService<IDialogService>()?.ShowMessageBox("The server API did not return any online servers.", "Change Server for All");
+            return;
+        }
+
+        Window dialog = new Window
+        {
+            Title = "Change Server for All",
+            Width = 360,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Background = this.Background
+        };
+        StackPanel panel = new StackPanel { Spacing = 12, Margin = new Thickness(18) };
+        panel.Children.Add(new TextBlock { Text = "Select the server for all open clients:", TextWrapping = TextWrapping.Wrap });
+
+        string initialServer = serverNames.FirstOrDefault(name => name.Equals("Artix", StringComparison.OrdinalIgnoreCase)) ?? serverNames[0];
+        ComboBox serverPicker = new ComboBox
+        {
+            ItemsSource = serverNames,
+            SelectedItem = initialServer,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        panel.Children.Add(serverPicker);
+
+        StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8 };
+        Button cancelButton = new Button { Content = "Cancel", MinWidth = 84 };
+        Button changeButton = new Button { Content = "Change Server", MinWidth = 110, IsDefault = true };
+        cancelButton.Click += (_, _) => dialog.Close(false);
+        changeButton.Click += (_, _) => dialog.Close(true);
+        buttons.Children.Add(cancelButton);
+        buttons.Children.Add(changeButton);
+        panel.Children.Add(buttons);
+        dialog.Content = panel;
+
+        bool? confirmed = await dialog.ShowDialog<bool?>(this);
+        string targetServer = serverPicker.SelectedItem?.ToString()?.Trim() ?? string.Empty;
+        if (confirmed != true || string.IsNullOrWhiteSpace(targetServer))
+            return;
+
+        try
+        {
+            string tempFile = Path.Combine(Path.GetTempPath(), "skua_global_change_server.txt");
+            File.WriteAllText(tempFile, targetServer);
+            int sentCount = 0;
+            foreach (var info in _tabs.Values)
+            {
+                if (info.ChildHwnd != IntPtr.Zero && PostMessage(info.ChildHwnd, WM_SKUA_CHANGE_SERVER, IntPtr.Zero, IntPtr.Zero))
+                    sentCount++;
+            }
+
+            if (sentCount == 0)
+                Ioc.Default.GetService<IDialogService>()?.ShowMessageBox("No active client windows were available to receive the server change.", "Change Server for All");
+        }
+        catch (Exception ex)
+        {
+            Trace.WriteLine($"Failed to broadcast Army Control server change: {ex.GetType().Name}: {ex.Message}");
+            Ioc.Default.GetService<IDialogService>()?.ShowMessageBox("Could not send the server change to the clients.", "Change Server for All");
+        }
+    }
 
     private void MenuItem_AcceptQuest_Click(object? sender, RoutedEventArgs e)
     {
