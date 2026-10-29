@@ -358,25 +358,29 @@ public partial class MainWindow : Window
                 string room = string.Empty;
                 try
                 {
-                    string? activeRoomJson = _flash.CallGameFunction("sfc.getActiveRoom");
-                    if (!string.IsNullOrWhiteSpace(activeRoomJson))
+                    int activeRoomId = _flash.GetGameObject<int>("sfc.activeRoomId");
+                    if (activeRoomId > 0)
                     {
-                        using JsonDocument activeRoomDocument = JsonDocument.Parse(activeRoomJson);
-                        JsonElement activeRoom = activeRoomDocument.RootElement;
-                        string? activeRoomName = activeRoom.ValueKind == JsonValueKind.String
-                            ? activeRoom.GetString()
-                            : activeRoom.ValueKind == JsonValueKind.Object && activeRoom.TryGetProperty("name", out JsonElement nameElement)
-                                ? nameElement.GetString()
-                                : null;
-
-                        if (!string.IsNullOrWhiteSpace(activeRoomName))
+                        string? activeRoomJson = _flash.GetGameObject($"sfc.roomList[\\\"{activeRoomId}\\\"]");
+                        if (!string.IsNullOrWhiteSpace(activeRoomJson))
                         {
-                            int separatorIndex = activeRoomName.LastIndexOf('-');
-                            if (separatorIndex >= 0 && separatorIndex < activeRoomName.Length - 1)
+                            using JsonDocument activeRoomDocument = JsonDocument.Parse(activeRoomJson);
+                            JsonElement activeRoom = activeRoomDocument.RootElement;
+                            string? activeRoomName = activeRoom.ValueKind == JsonValueKind.String
+                                ? activeRoom.GetString()
+                                : activeRoom.ValueKind == JsonValueKind.Object && activeRoom.TryGetProperty("name", out JsonElement nameElement)
+                                    ? nameElement.GetString()
+                                    : null;
+
+                            if (!string.IsNullOrWhiteSpace(activeRoomName))
                             {
-                                string roomSuffix = activeRoomName[(separatorIndex + 1)..];
-                                if (roomSuffix.All(char.IsDigit))
-                                    room = roomSuffix;
+                                int separatorIndex = activeRoomName.LastIndexOf('-');
+                                if (separatorIndex >= 0 && separatorIndex < activeRoomName.Length - 1)
+                                {
+                                    string roomSuffix = activeRoomName[(separatorIndex + 1)..];
+                                    if (roomSuffix.All(char.IsDigit))
+                                        room = roomSuffix;
+                                }
                             }
                         }
                     }
