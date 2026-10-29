@@ -137,8 +137,11 @@ internal static class Program
 
     public static AppBuilder BuildAvaloniaApp()
     {
-        AppBuilder builder = AppBuilder.Configure<App>()
-            .UsePlatformDetect()
+        AppBuilder builder = AppBuilder.Configure<App>();
+        // Linux: X11 explicitly rather than whatever UsePlatformDetect picks (a future Avalonia may pick Wayland);
+        // the Mugetsu embed (X11 reparenting) and the hotkey grab (XGrabKey) need X11, or XWayland.
+        builder = OperatingSystem.IsLinux() ? builder.UseX11().UseSkia() : builder.UsePlatformDetect();
+        builder = builder
             .With(new Win32PlatformOptions
             {
                 RenderingMode = new[] { Win32RenderingMode.AngleEgl, Win32RenderingMode.Software },
