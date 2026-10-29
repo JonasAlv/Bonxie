@@ -634,7 +634,8 @@ public partial class ScriptRepoViewModel : BotControlViewModelBase
         }
         finally
         {
-            IsLoadingScripts = false;
+            // A refresh during the initial fetch (filter change after Cancel) must not end the loading state
+            IsLoadingScripts = _isLoadingInitial;
             _refreshSemaphore.Release();
         }
     }
