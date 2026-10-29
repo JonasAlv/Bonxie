@@ -321,7 +321,7 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
                 else
                 {
                     catching = false;
-                    if ((wasPlaying || Manager.ScriptRunning) && !_waitForLogin && !Servers.IsIntentionalLogout && Options.AutoRelogin)
+                    if ((wasPlaying || Manager.ScriptRunning) && !_waitForLogin && !Servers.IsIntentionalLogout && Options.AutoRelogin && WatchdogEnabled)
                     {
                         wasPlaying = false;
                         Log("Unexpected disconnection detected by watchdog. Triggering auto re-login.");
@@ -356,6 +356,9 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
             }
         }
     }
+
+    // The relogin watchdog (Application Options); read only when a disconnect would trigger it
+    private bool WatchdogEnabled => _settingsService.Get("ReloginWatchdog", true);
 
     private void CheckOptions()
     {
@@ -479,7 +482,7 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
 
             case "connectionLost":
                 Log("Flash socket connection lost event received.");
-                if (!_waitForLogin && !Servers.IsIntentionalLogout && Options.AutoRelogin)
+                if (!_waitForLogin && !Servers.IsIntentionalLogout && Options.AutoRelogin && WatchdogEnabled)
                 {
                     BeginLogout();
                 }
