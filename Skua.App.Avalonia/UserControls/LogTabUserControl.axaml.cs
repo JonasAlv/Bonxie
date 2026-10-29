@@ -4,6 +4,8 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using CommunityToolkit.Mvvm.DependencyInjection;
+using Skua.Core.Interfaces;
 using Skua.App.Avalonia.ViewModels.AppLogs;
 using System;
 using System.Collections.Specialized;
@@ -111,13 +113,40 @@ public partial class LogTabUserControl : UserControl
         }
     }
 
-    // Called by the Copy button on the Logs tab row: the selected lines, or the whole log when none are selected.
+    // Copy selected lines, or the entire log when nothing is selected.
     public async Task CopySelectedOrAllAsync()
     {
-        if (LogsListBox.SelectedItems is { Count: > 0 })
-            await CopySelectedLogsAsync();
-        else if (DataContext is LogTabViewModel vm)
-            vm.CopyLogCommand.Execute(null);
+        LogTabViewModel? vm = DataContext as LogTabViewModel;
+        if (vm is null)
+            return;
+
+        string text = LogsListBox.SelectedItems is { Count: > 0 } items
+            ? string.Join(Environment.NewLine, items.Cast<object>().Select(item => item?.ToString() ?? string.Empty))
+            : string.Join(Environment.NewLine, vm.Logs);
+
+        if (string.IsNullOrEmpty(text))
+        {
+            CountText.Text = "No log lines to copy";
+            return;
+        }
+
+        try
+        {
+            TopLevel? topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel?.Clipboard is { } clipboard)
+            {
+                await clipboard.SetTextAsync(text);
+                UpdateCountText();
+                return;
+            }
+
+            Ioc.Default.GetRequiredService<IClipboardService>().SetText(text);
+            UpdateCountText();
+        }
+        catch (Exception)
+        {
+            CountText.Text = "Couldn't copy logs; try again";
+        }
     }
 
     private void LogsListBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -152,21 +181,6 @@ public partial class LogTabUserControl : UserControl
 
     private async Task CopySelectedLogsAsync()
     {
-        if (LogsListBox.SelectedItems is { Count: > 0 } items)
-        {
-            string text = string.Join(Environment.NewLine, items.Cast<object>().Select(x => x.ToString()));
-            if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
-            {
-                try
-                {
-                    await clipboard.SetTextAsync(text);
-                    UpdateCountText();
-                }
-                catch (Exception)
-                {
-                    CountText.Text = "Couldn't copy: the clipboard is busy, try again";
-                }
-            }
-        }
+        await CopySelectedOrAllAsync();
     }
 }
