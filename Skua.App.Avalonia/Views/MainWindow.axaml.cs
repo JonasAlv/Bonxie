@@ -14,6 +14,7 @@ using Skua.Core.Messaging;
 using System;
 using System.Collections.Specialized;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Linq;
 using Skua.Core.Interfaces.ViewModels;
