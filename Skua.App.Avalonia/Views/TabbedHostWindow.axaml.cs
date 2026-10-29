@@ -1423,6 +1423,166 @@ public partial class TabbedHostWindow : Window
         }
     }
 
+    private async void MenuItem_MapTravel_Click(object? sender, RoutedEventArgs e)
+    {
+        Window dialog = new Window
+        {
+            Title = "Map Travel",
+            Width = 640,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            Background = this.Background
+        };
+
+        StackPanel panel = new StackPanel { Spacing = 14, Margin = new Thickness(18) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Choose a recent destination or a saved preset to jump all clients.",
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        TextBlock historyLabel = new TextBlock { Text = "Recent destinations" };
+        ComboBox historyPicker = new ComboBox
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinWidth = 360
+        };
+        StackPanel historyButtons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Spacing = 8
+        };
+        Button jumpHistoryButton = new Button { Content = "Select / Jump", MinWidth = 110 };
+        Button clearHistoryButton = new Button { Content = "Clear History", MinWidth = 100 };
+
+        void RefreshHistory()
+        {
+            List<ArmyJumpDestination> history = _jumpMapHistory.ToList();
+            historyPicker.ItemsSource = history.Select(item => item.DisplayName).ToList();
+            historyPicker.SelectedIndex = history.Count > 0 ? 0 : -1;
+            jumpHistoryButton.IsEnabled = history.Count > 0;
+            clearHistoryButton.IsEnabled = history.Count > 0;
+        }
+
+        jumpHistoryButton.Click += (_, _) =>
+        {
+            List<ArmyJumpDestination> history = _jumpMapHistory.ToList();
+            int index = historyPicker.SelectedIndex;
+            if (index >= 0 && index < history.Count)
+                JumpArmyToDestination(history[index]);
+        };
+        clearHistoryButton.Click += (_, _) =>
+        {
+            _jumpMapHistory.Clear();
+            SaveArmyJumpSettings();
+            RefreshHistory();
+        };
+        historyButtons.Children.Add(jumpHistoryButton);
+        historyButtons.Children.Add(clearHistoryButton);
+        panel.Children.Add(historyLabel);
+        panel.Children.Add(historyPicker);
+        panel.Children.Add(historyButtons);
+
+        panel.Children.Add(new Separator());
+
+        TextBlock presetLabel = new TextBlock { Text = "Saved presets" };
+        ComboBox presetPicker = new ComboBox
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinWidth = 360
+        };
+        StackPanel presetButtons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Spacing = 8
+        };
+        Button jumpPresetButton = new Button { Content = "Select / Jump", MinWidth = 110 };
+        Button createPresetButton = new Button { Content = "Create", MinWidth = 80 };
+        Button editPresetButton = new Button { Content = "Edit", MinWidth = 70 };
+        Button deletePresetButton = new Button { Content = "Delete", MinWidth = 80 };
+
+        void RefreshPresets(int selectedIndex = 0)
+        {
+            presetPicker.ItemsSource = _jumpMapPresets.Select(item => $"{item.Name} — {item.DisplayName}").ToList();
+            presetPicker.SelectedIndex = _jumpMapPresets.Count == 0 ? -1 : Math.Clamp(selectedIndex, 0, _jumpMapPresets.Count - 1);
+            bool hasPresets = _jumpMapPresets.Count > 0;
+            jumpPresetButton.IsEnabled = hasPresets;
+            editPresetButton.IsEnabled = hasPresets;
+            deletePresetButton.IsEnabled = hasPresets;
+        }
+
+        jumpPresetButton.Click += (_, _) =>
+        {
+            int index = presetPicker.SelectedIndex;
+            if (index >= 0 && index < _jumpMapPresets.Count)
+                JumpArmyToDestination(_jumpMapPresets[index]);
+        };
+        createPresetButton.Click += async (_, _) =>
+        {
+            dialog.Hide();
+            await OpenJumpMapPresetEditor(null);
+            RefreshPresets(_jumpMapPresets.Count - 1);
+            dialog.Show();
+        };
+        editPresetButton.Click += async (_, _) =>
+        {
+            int index = presetPicker.SelectedIndex;
+            if (index < 0 || index >= _jumpMapPresets.Count)
+                return;
+
+            ArmyJumpDestination selectedPreset = _jumpMapPresets[index];
+            dialog.Hide();
+            await OpenJumpMapPresetEditor(selectedPreset);
+            RefreshPresets(index);
+            dialog.Show();
+        };
+        deletePresetButton.Click += (_, _) =>
+        {
+            int index = presetPicker.SelectedIndex;
+            if (index < 0 || index >= _jumpMapPresets.Count)
+                return;
+
+            _jumpMapPresets.RemoveAt(index);
+            SaveArmyJumpSettings();
+            RefreshPresets(index);
+        };
+
+        presetButtons.Children.Add(jumpPresetButton);
+        presetButtons.Children.Add(createPresetButton);
+        presetButtons.Children.Add(editPresetButton);
+        presetButtons.Children.Add(deletePresetButton);
+        panel.Children.Add(presetLabel);
+        panel.Children.Add(presetPicker);
+        panel.Children.Add(presetButtons);
+
+        StackPanel bottomButtons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Spacing = 8
+        };
+        Button manualJumpButton = new Button { Content = "Jump to Map / Cell...", MinWidth = 140 };
+        Button closeButton = new Button { Content = "Close", MinWidth = 84, IsCancel = true };
+        manualJumpButton.Click += (_, _) =>
+        {
+            dialog.Hide();
+            MenuItem_JumpMap_Click(null, new RoutedEventArgs());
+            dialog.Show();
+        };
+        closeButton.Click += (_, _) => dialog.Close();
+        bottomButtons.Children.Add(manualJumpButton);
+        bottomButtons.Children.Add(closeButton);
+        panel.Children.Add(bottomButtons);
+
+        RefreshHistory();
+        RefreshPresets();
+        dialog.Content = panel;
+        await dialog.ShowDialog(this);
+    }
+
     private void MenuItem_JumpMap_Click(object? sender, RoutedEventArgs e)
     {
         InputDialogViewModel vm = new("Jump Army to Map / Cell", "Enter destination as Map,Room,Cell (room is optional):", "e.g., yulgar,12345,Enter", false);
