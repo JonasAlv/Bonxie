@@ -1015,13 +1015,14 @@ public sealed partial class AccountManagerViewModel : BotControlViewModelBase
 
     private async Task _MeasureServerPings(List<Server> servers)
     {
-        const int TimeoutMs = 1500;
+        const int TimeoutMs = 2500;
         const int SampleCount = 3;
         const long FailedPing = 9999;
+        byte[] versionCheck = System.Text.Encoding.UTF8.GetBytes("<msg t='sys'><body action='verChk' r='0'><ver v='165' /></body></msg>\0");
 
         List<Task> pingTasks = servers.Select(server => Task.Run(async () =>
         {
-            if (string.IsNullOrWhiteSpace(server.IP) || server.Port <= 0 || server.Port > 65535)
+            if (!server.Online || string.IsNullOrWhiteSpace(server.IP) || server.Port <= 0 || server.Port > 65535)
             {
                 server.Ping = FailedPing;
                 return;
@@ -1034,15 +1035,49 @@ public sealed partial class AccountManagerViewModel : BotControlViewModelBase
                 try
                 {
                     using System.Net.Sockets.TcpClient client = new();
+                    await client.ConnectAsync(server.IP, server.Port).WaitAsync(TimeSpan.FromMilliseconds(TimeoutMs));
+
+                    using System.Net.Sockets.NetworkStream stream = client.GetStream();
+                    await stream.WriteAsync(versionCheck.AsMemory());
+                    await stream.FlushAsync();
+
+                    // Start timing after the version check is sent; TCP connect time alone can be misleading.
                     Stopwatch stopwatch = Stopwatch.StartNew();
-                    Task connectTask = client.ConnectAsync(server.IP, server.Port);
-                    await connectTask.WaitAsync(TimeSpan.FromMilliseconds(TimeoutMs));
-                    stopwatch.Stop();
-                    samples.Add(stopwatch.Elapsed.TotalMilliseconds);
+                    using CancellationTokenSource timeout = new(TimeoutMs);
+                    byte[] buffer = new byte[1];
+                    System.Text.StringBuilder response = new();
+
+                    while (!timeout.IsCancellationRequested)
+                    {
+                        int bytesRead = await stream.ReadAsync(buffer.AsMemory(), timeout.Token);
+                        if (bytesRead == 0)
+                            break;
+
+                        if (buffer[0] != 0)
+                        {
+                            response.Append((char)buffer[0]);
+                            continue;
+                        }
+
+                        string message = response.ToString();
+                        response.Clear();
+
+                        if (message.Contains("action='apiOK'", StringComparison.OrdinalIgnoreCase)
+                            || message.Contains("action=\"apiOK\"", StringComparison.OrdinalIgnoreCase))
+                        {
+                            stopwatch.Stop();
+                            samples.Add(stopwatch.Elapsed.TotalMilliseconds);
+                            break;
+                        }
+
+                        if (message.Contains("action='apiKO'", StringComparison.OrdinalIgnoreCase)
+                            || message.Contains("action=\"apiKO\"", StringComparison.OrdinalIgnoreCase))
+                            break;
+                    }
                 }
                 catch
                 {
-                    // A failed or timed-out connection is not a valid latency sample.
+                    // A failed connection or missing protocol response is not a valid latency sample.
                 }
             }
 
