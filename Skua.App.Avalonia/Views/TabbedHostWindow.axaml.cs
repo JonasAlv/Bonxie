@@ -1570,6 +1570,7 @@ public partial class TabbedHostWindow : Window
                 || !_tabs.TryGetValue(selectedTab, out TabInfo? selectedInfo)
                 || selectedInfo.Process == null
                 || !_latestClientLocations.TryGetValue(selectedInfo.Process.Id, out ArmyClientLocation? location)
+                || location == null
                 || location.UpdatedUtc < DateTime.UtcNow.AddSeconds(-5)
                 || string.IsNullOrWhiteSpace(location.Map))
             {
