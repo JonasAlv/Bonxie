@@ -167,6 +167,36 @@ public partial class LogTabUserControl : UserControl
         await CopySelectedLogsAsync();
     }
 
+    private async void CopyAll_Click(object? sender, RoutedEventArgs e)
+    {
+        LogTabViewModel? vm = DataContext as LogTabViewModel;
+        if (vm is null)
+            return;
+
+        string text = string.Join(Environment.NewLine, vm.Logs);
+        if (string.IsNullOrEmpty(text))
+        {
+            CountText.Text = "No log lines to copy";
+            return;
+        }
+
+        try
+        {
+            TopLevel? topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel?.Clipboard is { } clipboard)
+                await clipboard.SetTextAsync(text);
+            else
+                Ioc.Default.GetRequiredService<IClipboardService>().SetText(text);
+
+            UpdateCountText();
+        }
+        catch (Exception)
+        {
+            CountText.Text = "Couldn't copy logs; try again";
+        }
+    }
+
+
     // Every copy handler is async void, so a clipboard failure (another app holding it open) is caught here and
     // shown in the count line instead of escaping as an unhandled UI exception.
     private async void CopyButton_Click(object? sender, RoutedEventArgs e)
