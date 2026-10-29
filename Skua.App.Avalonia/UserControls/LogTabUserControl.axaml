@@ -2,7 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="Skua.App.Avalonia.UserControls.LogTabUserControl">
-  <Grid RowDefinitions="*,Auto,Auto" RowSpacing="6">
+  <Grid RowDefinitions="*,Auto" RowSpacing="8">
     <!-- Log lines: Ctrl+C or the context menu copies the selection -->
     <ListBox x:Name="LogsListBox"
              Grid.Row="0"
@@ -24,7 +24,7 @@
               <materialIcons:MaterialIcon Kind="ContentCopy" Width="14" Height="14" />
             </MenuItem.Icon>
           </MenuItem>
-          <MenuItem Header="Copy All" Click="CopyAll_Click">
+          <MenuItem Header="Copy All" Command="{Binding CopyLogCommand}">
             <MenuItem.Icon>
               <materialIcons:MaterialIcon Kind="SelectAll" Width="14" Height="14" />
             </MenuItem.Icon>
@@ -58,34 +58,6 @@
     <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
       <TextBlock Grid.Column="0" x:Name="CountText" Text="0 lines" FontSize="11" Foreground="{DynamicResource SkuaMutedTextBrush}" />
       <TextBlock Grid.Column="1" x:Name="CopyHint" Text="Ctrl+C or right-click to copy selected lines" FontSize="11" Foreground="{DynamicResource SkuaMutedTextBrush}" />
-    </Grid>
-
-    <!-- Keep log actions available inside the Script Loader. -->
-    <Grid Grid.Row="2" ColumnDefinitions="*,*,*,*" ColumnSpacing="6">
-      <Button Grid.Column="0" Classes="skua-button small" Height="28" Padding="6,0" Click="CopyButton_Click" ToolTip.Tip="Copy selected lines, or all lines when nothing is selected">
-        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
-          <materialIcons:MaterialIcon Kind="ContentCopy" Width="13" Height="13" />
-          <TextBlock Text="Copy" FontSize="11" VerticalAlignment="Center" />
-        </StackPanel>
-      </Button>
-      <Button Grid.Column="1" Classes="skua-button small" Height="28" Padding="6,0" Command="{Binding SaveLogCommand}" ToolTip.Tip="Save this log to a file">
-        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
-          <materialIcons:MaterialIcon Kind="ContentSaveOutline" Width="13" Height="13" />
-          <TextBlock Text="Save" FontSize="11" VerticalAlignment="Center" />
-        </StackPanel>
-      </Button>
-      <Button Grid.Column="2" Classes="skua-button small" Height="28" Padding="6,0" Click="DeselectButton_Click" ToolTip.Tip="Clear the current log-line selection">
-        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
-          <materialIcons:MaterialIcon Kind="SelectionRemove" Width="13" Height="13" />
-          <TextBlock Text="Deselect" FontSize="11" VerticalAlignment="Center" />
-        </StackPanel>
-      </Button>
-      <Button Grid.Column="3" Classes="skua-button small skua-danger-soft" Height="28" Padding="6,0" Command="{Binding ClearLogCommand}" ToolTip.Tip="Clear this log">
-        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
-          <materialIcons:MaterialIcon Kind="TrashCanOutline" Width="13" Height="13" />
-          <TextBlock Text="Clear" FontSize="11" VerticalAlignment="Center" />
-        </StackPanel>
-      </Button>
     </Grid>
   </Grid>
 </UserControl>

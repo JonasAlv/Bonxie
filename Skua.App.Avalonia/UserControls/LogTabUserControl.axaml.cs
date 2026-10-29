@@ -4,8 +4,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using CommunityToolkit.Mvvm.DependencyInjection;
-using Skua.Core.Interfaces;
 using Skua.App.Avalonia.ViewModels.AppLogs;
 using System;
 using System.Collections.Specialized;
@@ -113,40 +111,18 @@ public partial class LogTabUserControl : UserControl
         }
     }
 
-    // Copy selected lines, or the entire log when nothing is selected.
+    // Called by the Copy button on the Logs tab row: the selected lines, or the whole log when none are selected.
     public async Task CopySelectedOrAllAsync()
     {
-        LogTabViewModel? vm = DataContext as LogTabViewModel;
-        if (vm is null)
-            return;
+        if (LogsListBox.SelectedItems is { Count: > 0 })
+            await CopySelectedLogsAsync();
+        else if (DataContext is LogTabViewModel vm)
+            vm.CopyLogCommand.Execute(null);
+    }
 
-        string text = LogsListBox.SelectedItems is { Count: > 0 } items
-            ? string.Join(Environment.NewLine, items.Cast<object>().Select(item => item?.ToString() ?? string.Empty))
-            : string.Join(Environment.NewLine, vm.Logs);
-
-        if (string.IsNullOrEmpty(text))
-        {
-            CountText.Text = "No log lines to copy";
-            return;
-        }
-
-        try
-        {
-            TopLevel? topLevel = TopLevel.GetTopLevel(this);
-            if (topLevel?.Clipboard is { } clipboard)
-            {
-                await clipboard.SetTextAsync(text);
-                UpdateCountText();
-                return;
-            }
-
-            Ioc.Default.GetRequiredService<IClipboardService>().SetText(text);
-            UpdateCountText();
-        }
-        catch (Exception)
-        {
-            CountText.Text = "Couldn't copy logs; try again";
-        }
+    public void DeselectAll()
+    {
+        LogsListBox.SelectedItems?.Clear();
     }
 
     private void LogsListBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -167,50 +143,25 @@ public partial class LogTabUserControl : UserControl
         await CopySelectedLogsAsync();
     }
 
-    private async void CopyAll_Click(object? sender, RoutedEventArgs e)
-    {
-        LogTabViewModel? vm = DataContext as LogTabViewModel;
-        if (vm is null)
-            return;
-
-        string text = string.Join(Environment.NewLine, vm.Logs);
-        if (string.IsNullOrEmpty(text))
-        {
-            CountText.Text = "No log lines to copy";
-            return;
-        }
-
-        try
-        {
-            TopLevel? topLevel = TopLevel.GetTopLevel(this);
-            if (topLevel?.Clipboard is { } clipboard)
-                await clipboard.SetTextAsync(text);
-            else
-                Ioc.Default.GetRequiredService<IClipboardService>().SetText(text);
-
-            UpdateCountText();
-        }
-        catch (Exception)
-        {
-            CountText.Text = "Couldn't copy logs; try again";
-        }
-    }
-
-
     // Every copy handler is async void, so a clipboard failure (another app holding it open) is caught here and
     // shown in the count line instead of escaping as an unhandled UI exception.
-    private async void CopyButton_Click(object? sender, RoutedEventArgs e)
-    {
-        await CopySelectedOrAllAsync();
-    }
-
-    private void DeselectButton_Click(object? sender, RoutedEventArgs e)
-    {
-        LogsListBox.SelectedItems?.Clear();
-    }
-
     private async Task CopySelectedLogsAsync()
     {
-        await CopySelectedOrAllAsync();
+        if (LogsListBox.SelectedItems is { Count: > 0 } items)
+        {
+            string text = string.Join(Environment.NewLine, items.Cast<object>().Select(x => x.ToString()));
+            if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+            {
+                try
+                {
+                    await clipboard.SetTextAsync(text);
+                    UpdateCountText();
+                }
+                catch (Exception)
+                {
+                    CountText.Text = "Couldn't copy: the clipboard is busy, try again";
+                }
+            }
+        }
     }
 }
