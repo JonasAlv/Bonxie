@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
+using Avalonia.Platform;
 using Avalonia.Input;
 using Avalonia.Threading;
 using Skua.Core.Interfaces;
@@ -41,6 +42,9 @@ public class HotKeyService : IHotKeyService, IDisposable
 #if IS_WINDOWS
     private IntPtr _keyboardHook = IntPtr.Zero;
     private LowLevelKeyboardProc? _keyboardProc;
+#else
+    private X11HotKeyGrabber? _x11Grabber;
+    private bool _waitingForMainWindow;
 #endif
 
     public void Reload()
@@ -100,6 +104,8 @@ public class HotKeyService : IHotKeyService, IDisposable
 #if IS_WINDOWS
         if (global::Skua.Core.AppStartup.HotKeys.IsHostProcess)
             EnsureWindowsKeyboardHook();
+#else
+        UpdateX11Grabs(bindings);
 #endif
     }
 
@@ -392,6 +398,44 @@ public class HotKeyService : IHotKeyService, IDisposable
             modifiers |= KeyModifiers.Shift;
         return modifiers;
     }
+#else
+    // On Linux the game window has the keyboard while it's focused, so the KeyDown handler alone misses the hotkeys.
+    private void UpdateX11Grabs(List<HotKeyBinding> bindings)
+    {
+        if (!OperatingSystem.IsLinux() || _mainWindow is null)
+            return;
+
+        IPlatformHandle? handle = _mainWindow.TryGetPlatformHandle();
+        if (handle is null || handle.Handle == IntPtr.Zero)
+        {
+            // Not shown yet: grab once it has its X11 window.
+            if (!_waitingForMainWindow)
+            {
+                _waitingForMainWindow = true;
+                _mainWindow.Opened += (_, _) => Reload();
+            }
+            return;
+        }
+
+        if (handle.HandleDescriptor != "XID")
+            return;
+
+        _x11Grabber ??= new X11HotKeyGrabber(OnX11HotKey);
+        _x11Grabber.Update(handle.Handle, bindings.Select(b => new X11HotKeyGrabber.Gesture(b.Key, b.Modifiers)));
+    }
+
+    private void OnX11HotKey(X11HotKeyGrabber.Gesture gesture)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            HotKeyBinding? binding;
+            lock (_bindingsLock)
+                binding = _bindings.FirstOrDefault(b => b.Key == gesture.Key && b.Modifiers == gesture.Modifiers);
+
+            if (binding is not null)
+                ExecuteBinding(binding);
+        }, DispatcherPriority.Input);
+    }
 #endif
 
     private static KeyGestureBinding? ParseGesture(string gesture)
@@ -623,6 +667,8 @@ public class HotKeyService : IHotKeyService, IDisposable
             UnhookWindowsHookEx(_keyboardHook);
             _keyboardHook = IntPtr.Zero;
         }
+#else
+        _x11Grabber?.Dispose();
 #endif
 
         lock (_bindingsLock)

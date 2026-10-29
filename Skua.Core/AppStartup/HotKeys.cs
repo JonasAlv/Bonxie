@@ -345,7 +345,8 @@ public class HotKeys
 
     private static void ExecuteOrForward(string actionName, Action localExecute)
     {
-        if (IsHostProcess)
+        // Forwarding to a tab's client uses user32; off Windows there are no tabs, so run it here.
+        if (IsHostProcess && OperatingSystem.IsWindows())
         {
             IntPtr childHwnd = IntPtr.Zero;
             IntPtr fg = GetForegroundWindow();
@@ -573,6 +574,11 @@ public class HotKeys
 
     private static void BroadcastArmyMessage(uint msg, int wParam, int lParam)
     {
+        // Army clients are other Windows processes reached through user32. Off Windows there are none: the Army
+        // toggles still flip the option here (their argument does that), the rest do nothing.
+        if (!OperatingSystem.IsWindows())
+            return;
+
         var skuaProcesses = System.Diagnostics.Process.GetProcessesByName(System.Diagnostics.Process.GetCurrentProcess().ProcessName);
         var pids = skuaProcesses.Select(p => p.Id).ToHashSet();
         
