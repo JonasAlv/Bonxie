@@ -222,6 +222,11 @@
                                         <materialIcons:MaterialIcon Kind="HomeOutline" Width="14" Height="14" />
                                     </MenuItem.Icon>
                                 </MenuItem>
+                                <MenuItem Header="Change Server for All..." Click="MenuItem_ChangeServerAll_Click">
+                                    <MenuItem.Icon>
+                                        <materialIcons:MaterialIcon Kind="ServerNetwork" Width="14" Height="14" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
                                 <MenuItem Header="Accept Quest to All..." Click="MenuItem_AcceptQuest_Click">
                                     <MenuItem.Icon>
                                         <materialIcons:MaterialIcon Kind="FileDocumentEditOutline" Width="14" Height="14" />
