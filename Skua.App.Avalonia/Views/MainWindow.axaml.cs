@@ -353,32 +353,8 @@ public partial class MainWindow : Window
                 if (!map.Loaded || string.IsNullOrWhiteSpace(map.Name) || string.IsNullOrWhiteSpace(player.Cell))
                     return;
 
-                // Get the actual room name from SmartFox; world.curRoom is only an internal area ID.
-                string room = string.Empty;
-                try
-                {
-                    string? activeRoomJson = _flash.CallGameFunction("sfc.getActiveRoom");
-                    if (!string.IsNullOrWhiteSpace(activeRoomJson))
-                    {
-                        using JsonDocument activeRoomDocument = JsonDocument.Parse(activeRoomJson);
-                        JsonElement activeRoom = activeRoomDocument.RootElement;
-                        string? activeRoomName = activeRoom.ValueKind == JsonValueKind.Object && activeRoom.TryGetProperty("name", out JsonElement nameElement)
-                            ? nameElement.GetString()
-                            : null;
-
-                        if (!string.IsNullOrWhiteSpace(activeRoomName))
-                        {
-                            int separatorIndex = activeRoomName.LastIndexOf('-');
-                            if (separatorIndex >= 0 && separatorIndex < activeRoomName.Length - 1)
-                            {
-                                string roomSuffix = activeRoomName[(separatorIndex + 1)..];
-                                if (roomSuffix.All(char.IsDigit))
-                                    room = roomSuffix;
-                            }
-                        }
-                    }
-                }
-                catch { }
+                // Report the actual current room ID rather than the configured private-room number.
+                string room = map.RoomID > 0 ? map.RoomID.ToString() : string.Empty;
                 string locationFile = System.IO.Path.Combine(dir, $"{Environment.ProcessId}.location.json");
                 string temporaryFile = locationFile + ".tmp";
                 string locationJson = JsonSerializer.Serialize(new
