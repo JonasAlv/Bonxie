@@ -353,8 +353,8 @@ public partial class MainWindow : Window
                 if (!map.Loaded || string.IsNullOrWhiteSpace(map.Name) || string.IsNullOrWhiteSpace(player.Cell))
                     return;
 
-                // Report the actual current room ID rather than the configured private-room number.
-                string room = map.RoomID > 0 ? map.RoomID.ToString() : string.Empty;
+                // Report the server-assigned room number rather than the internal area ID or requested private-room number.
+                string room = map.RoomNumber > 0 ? map.RoomNumber.ToString() : string.Empty;
                 string locationFile = System.IO.Path.Combine(dir, $"{Environment.ProcessId}.location.json");
                 string temporaryFile = locationFile + ".tmp";
                 string locationJson = JsonSerializer.Serialize(new
