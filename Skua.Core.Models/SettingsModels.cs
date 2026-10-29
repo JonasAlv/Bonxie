@@ -235,6 +235,9 @@ public class ClientSettings
     [JsonPropertyName("ShowUsernameInTitle")]
     public bool ShowUsernameInTitle { get; set; } = true;
 
+    [JsonPropertyName("LogToFile")]
+    public bool LogToFile { get; set; } = true;
+
     [JsonPropertyName("UserCustomScriptsFolder")]
     public string UserCustomScriptsFolder { get; set; } = string.Empty;
 
