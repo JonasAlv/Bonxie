@@ -1487,10 +1487,18 @@ public partial class TabbedHostWindow : Window
         panel.Children.Add(historyPicker);
 
         StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8 };
+        Button clearButton = new Button { Content = "Clear History", MinWidth = 100 };
         Button cancelButton = new Button { Content = "Cancel", MinWidth = 84 };
         Button jumpButton = new Button { Content = "Jump", MinWidth = 84, IsDefault = true };
+        clearButton.Click += (_, _) =>
+        {
+            _jumpMapHistory.Clear();
+            SaveArmyJumpSettings();
+            dialog.Close(false);
+        };
         cancelButton.Click += (_, _) => dialog.Close(false);
         jumpButton.Click += (_, _) => dialog.Close(true);
+        buttons.Children.Add(clearButton);
         buttons.Children.Add(cancelButton);
         buttons.Children.Add(jumpButton);
         panel.Children.Add(buttons);
@@ -1526,6 +1534,23 @@ public partial class TabbedHostWindow : Window
         TextBox roomInput = new TextBox { Watermark = "Room number (optional)", Text = existingPreset?.Room ?? "" };
         TextBox cellInput = new TextBox { Watermark = "Cell", Text = existingPreset?.Cell ?? "Enter" };
         TextBox padInput = new TextBox { Watermark = "Pad", Text = existingPreset?.Pad ?? "Spawn" };
+
+        // New presets start with the selected client's current location when available.
+        if (existingPreset == null
+            && InstancesTabControl.SelectedItem is TabItem currentTab
+            && _tabs.TryGetValue(currentTab, out TabInfo? currentInfo)
+            && currentInfo.Process != null
+            && _latestClientLocations.TryGetValue(currentInfo.Process.Id, out ArmyClientLocation? currentLocation)
+            && currentLocation != null
+            && currentLocation.UpdatedUtc >= DateTime.UtcNow.AddSeconds(-5)
+            && !string.IsNullOrWhiteSpace(currentLocation.Map))
+        {
+            mapInput.Text = currentLocation.Map;
+            roomInput.Text = currentLocation.Room;
+            cellInput.Text = currentLocation.Cell;
+            padInput.Text = currentLocation.Pad;
+            nameInput.Text = currentLocation.Map + (string.IsNullOrWhiteSpace(currentLocation.Room) ? "" : "-" + currentLocation.Room);
+        }
 
         panel.Children.Add(new TextBlock { Text = "Preset name" });
         panel.Children.Add(nameInput);
