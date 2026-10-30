@@ -118,6 +118,10 @@ internal static class Program
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void RunApp(string[] args)
     {
+        Newtonsoft.Json.JsonConvert.DefaultSettings = () => new Newtonsoft.Json.JsonSerializerSettings
+        {
+            Converters = { new Skua.Core.Models.Converters.WholeNumberConverter() }
+        };
         try
         {
             ClientFileSources.EnsureInitialized();
