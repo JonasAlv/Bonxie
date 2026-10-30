@@ -361,7 +361,7 @@ public partial class App : Application
         }
     }
 
-    private static void TryInitializeStartupServices()
+    private static async Task TryInitializeStartupServices()
     {
         try
         {
@@ -392,7 +392,23 @@ public partial class App : Application
 
         try
         {
-            _ = Ioc.Default.GetService<Skua.Core.Interfaces.IGetScriptsService>()?.GetScriptsAsync(null, default);
+            IGetScriptsService? getScripts = Ioc.Default.GetService<IGetScriptsService>();
+            if (getScripts is null)
+                return;
+
+            await getScripts.GetScriptsAsync(null, default);
+
+            // Each tab runs as an --embed child process; only the host downloads, so the prompt shows once.
+            if (!Skua.Core.AppStartup.HotKeys.IsHostProcess)
+                return;
+
+            ISettingsService settings = Ioc.Default.GetRequiredService<ISettingsService>();
+            if (settings.Get<bool>("CheckBotScriptsUpdates") && (getScripts.Missing > 0 || getScripts.Outdated > 0)
+                && (settings.Get<bool>("AutoUpdateBotScripts")
+                    || Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("Would you like to update your scripts?", "Script Update", true) == true))
+            {
+                await getScripts.DownloadAllWhereAsync(s => !s.Downloaded || s.Outdated);
+            }
         }
         catch { }
     }
