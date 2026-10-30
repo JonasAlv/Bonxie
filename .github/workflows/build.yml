@@ -55,7 +55,12 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Build and package for linux-x64
-        run: bash package-linux.sh
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl tar gzip zip file
+          bash package-linux.sh
 
       - name: Upload Linux package
         uses: actions/upload-artifact@v4

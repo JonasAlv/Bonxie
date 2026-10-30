@@ -131,9 +131,21 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Build and package for linux-x64
-        run: bash package-linux.sh "${{ needs.build-and-release.outputs.version }}"
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl tar gzip zip file
+          bash package-linux.sh "${{ needs.build-and-release.outputs.version }}"
 
       - name: Upload to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "v${{ needs.build-and-release.outputs.version }}" Build/Bonxie-*-linux-x64.tar.gz --clobber
+        run: |
+          gh release upload "v${{ needs.build-and-release.outputs.version }}" \
+            Build/Bonxie-*-linux-x64.tar.gz \
+            Build/Bonxie-x86_64.AppImage \
+            Build/Bonxie-Manager-x86_64.AppImage \
+            Build/Bonxie-linux-AppImage.zip \
+            Build/Bonxie-linux-AppImage.tar.gz \
+            --clobber
