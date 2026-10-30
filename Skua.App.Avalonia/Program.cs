@@ -118,6 +118,11 @@ internal static class Program
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void RunApp(string[] args)
     {
+        // Game JSON can carry ints as "123.0"; read them instead of crashing every DeserializeObject caller.
+        Newtonsoft.Json.JsonConvert.DefaultSettings = () => new Newtonsoft.Json.JsonSerializerSettings
+        {
+            Converters = { new Skua.Core.Models.Converters.WholeNumberConverter() }
+        };
         try
         {
             ClientFileSources.EnsureInitialized();
