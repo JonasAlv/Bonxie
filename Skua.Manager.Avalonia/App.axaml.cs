@@ -81,7 +81,7 @@ public partial class App : Application
                 if (settings.Get<bool>("CheckBotScriptsUpdates") && settings.Get<bool>("AutoUpdateBotScripts")
                     && (getScripts.Missing > 0 || getScripts.Outdated > 0))
                 {
-                    await getScripts.DownloadAllWhereAsync(s => !s.Downloaded || s.Outdated);
+                    await ScriptStartupUpdater.DownloadMissingAndOutdatedAsync(getScripts, Ioc.Default.GetRequiredService<IDialogService>());
                 }
             }
             catch { }

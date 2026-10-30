@@ -403,11 +403,12 @@ public partial class App : Application
                 return;
 
             ISettingsService settings = Ioc.Default.GetRequiredService<ISettingsService>();
+            IDialogService dialogService = Ioc.Default.GetRequiredService<IDialogService>();
             if (settings.Get<bool>("CheckBotScriptsUpdates") && (getScripts.Missing > 0 || getScripts.Outdated > 0)
                 && (settings.Get<bool>("AutoUpdateBotScripts")
-                    || Ioc.Default.GetRequiredService<IDialogService>().ShowMessageBox("Would you like to update your scripts?", "Script Update", true) == true))
+                    || dialogService.ShowMessageBox("Would you like to update your scripts?", "Script Update", true) == true))
             {
-                await getScripts.DownloadAllWhereAsync(s => !s.Downloaded || s.Outdated);
+                await Skua.Core.Services.ScriptStartupUpdater.DownloadMissingAndOutdatedAsync(getScripts, dialogService);
             }
         }
         catch { }
