@@ -7,28 +7,72 @@ using System.Linq;
 
 namespace Skua.App.Avalonia.ViewModels.Options;
 
+// A section of an options window: a chip in the chip row and, under "All", a header over its rows
 public class OptionGroupViewModel
 {
     public string Title { get; set; } = string.Empty;
+    public string ShortTitle { get; set; } = string.Empty;
     public string Icon { get; set; } = "Cog";
     public string Description { get; set; } = string.Empty;
     public List<DisplayOptionItemViewModelBase> Items { get; set; } = new();
+    public bool IsAll { get; private init; }
+    public int Count => Items.Count;
+
+    public static OptionGroupViewModel CreateAll(IEnumerable<OptionGroupViewModel> groups) => new()
+    {
+        Title = "All",
+        ShortTitle = "All",
+        Icon = "Apps",
+        Items = groups.SelectMany(g => g.Items).ToList(),
+        IsAll = true
+    };
+
+    // The groups with only the items whose title or description contains the search text; empty groups dropped
+    public static IEnumerable<OptionGroupViewModel> Filter(IEnumerable<OptionGroupViewModel> groups, string search)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+            return groups;
+
+        string text = search.Trim();
+        return groups.Select(g => new OptionGroupViewModel
+        {
+            Title = g.Title,
+            ShortTitle = g.ShortTitle,
+            Icon = g.Icon,
+            Description = g.Description,
+            Items = g.Items.Where(i => i.Content.Contains(text, StringComparison.OrdinalIgnoreCase) ||
+                                       (i.Description?.Contains(text, StringComparison.OrdinalIgnoreCase) ?? false)).ToList()
+        }).Where(g => g.Items.Count > 0);
+    }
 }
 
 public partial class ApplicationOptionsViewModel : BotControlViewModelBase
 {
+    // Sections by settings key (the option's Tag); everything else is a webhook option
+    private static readonly string[] GeneralKeys = { "ShowUsernameInTitle", "ClientAnim", "ReloginTryDelay", "ReloginWatchdog", "ClearFlashCache" };
+    private static readonly string[] UpdateKeys =
+    {
+        "CheckBotScriptsUpdates", "AutoUpdateBotScripts", "CheckAdvanceSkillSetsUpdates", "AutoUpdateAdvanceSkillSetsUpdates",
+        "CheckJunkItemsUpdates", "AutoUpdateJunkItems"
+    };
+
     private string _searchText = string.Empty;
-    private string _selectedCategory = "All";
+    private OptionGroupViewModel _selectedSection;
 
     public ApplicationOptionsViewModel(List<DisplayOptionItemViewModelBase> appOptions)
         : base("Application Options", 580, 650)
     {
         ApplicationOptions = appOptions;
         BuildGroups();
+        Sections = new List<OptionGroupViewModel> { OptionGroupViewModel.CreateAll(OptionGroups) }.Concat(OptionGroups).ToList();
+        _selectedSection = Sections[0];
     }
 
     public List<DisplayOptionItemViewModelBase> ApplicationOptions { get; }
     public List<OptionGroupViewModel> OptionGroups { get; private set; } = new();
+
+    // The chip row: "All", then each group
+    public List<OptionGroupViewModel> Sections { get; }
 
     public string SearchText
     {
@@ -40,87 +84,38 @@ public partial class ApplicationOptionsViewModel : BotControlViewModelBase
         }
     }
 
-    public string SelectedCategory
+    public OptionGroupViewModel SelectedSection
     {
-        get => _selectedCategory;
+        get => _selectedSection;
         set
         {
-            if (SetProperty(ref _selectedCategory, value))
+            if (value is not null && SetProperty(ref _selectedSection, value))
+            {
                 OnPropertyChanged(nameof(FilteredGroups));
-        }
-    }
-
-    public List<string> Categories { get; } = new() { "All", "General & Performance", "Auto Updates", "Webhooks" };
-
-    public IEnumerable<OptionGroupViewModel> FilteredGroups
-    {
-        get
-        {
-            IEnumerable<OptionGroupViewModel> groups = OptionGroups;
-            if (_selectedCategory != "All")
-            {
-                groups = groups.Where(g => g.Title.Contains(_selectedCategory, StringComparison.OrdinalIgnoreCase));
+                OnPropertyChanged(nameof(ShowSectionHeaders));
             }
-
-            if (string.IsNullOrWhiteSpace(_searchText))
-                return groups;
-
-            return groups.Select(g => new OptionGroupViewModel
-            {
-                Title = g.Title,
-                Icon = g.Icon,
-                Description = g.Description,
-                Items = g.Items.Where(i => i.Content.Contains(_searchText, StringComparison.OrdinalIgnoreCase) || 
-                                           (i.Description?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false)).ToList()
-            }).Where(g => g.Items.Count > 0);
         }
     }
+
+    public bool ShowSectionHeaders => _selectedSection.IsAll;
+
+    public IEnumerable<OptionGroupViewModel> FilteredGroups =>
+        OptionGroupViewModel.Filter(_selectedSection.IsAll ? OptionGroups : new[] { _selectedSection }, _searchText);
 
     private void BuildGroups()
     {
-        var generalItems = ApplicationOptions.Where(i =>
-            i.Content.Contains("Username", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Frame-rate", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Relogin", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Flash Cache", StringComparison.OrdinalIgnoreCase)
-        ).ToList();
+        List<DisplayOptionItemViewModelBase> InSection(string[] keys) =>
+            keys.Select(k => ApplicationOptions.FirstOrDefault(i => i.Tag == k)).OfType<DisplayOptionItemViewModelBase>().ToList();
 
-        var updateItems = ApplicationOptions.Where(i =>
-            i.Content.Contains("Update", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Updates", StringComparison.OrdinalIgnoreCase)
-        ).ToList();
-
-        var webhookItems = ApplicationOptions.Where(i =>
-            i.Content.Contains("Webhook", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Discord", StringComparison.OrdinalIgnoreCase) ||
-            i.Content.Contains("Nexus", StringComparison.OrdinalIgnoreCase)
-        ).ToList();
-
-        var otherItems = ApplicationOptions.Except(generalItems).Except(updateItems).Except(webhookItems).ToList();
+        List<DisplayOptionItemViewModelBase> general = InSection(GeneralKeys);
+        List<DisplayOptionItemViewModelBase> updates = InSection(UpdateKeys);
+        List<DisplayOptionItemViewModelBase> webhooks = ApplicationOptions.Except(general).Except(updates).ToList();
 
         OptionGroups = new List<OptionGroupViewModel>
         {
-            new()
-            {
-                Title = "General & Performance",
-                Icon = "ApplicationCogOutline",
-                Description = "Client interface, animation frame rates, relogin timings, and cache",
-                Items = generalItems.Concat(otherItems).ToList()
-            },
-            new()
-            {
-                Title = "Auto Updates & Sync",
-                Icon = "CloudSyncOutline",
-                Description = "Automatic synchronization for bot scripts, skill sets, and item database",
-                Items = updateItems
-            },
-            new()
-            {
-                Title = "Webhooks & Alerts",
-                Icon = "Webhook",
-                Description = "Remote script notifications, crash alerts, relog pings, and rare drop alerts for Discord & Skua Nexus",
-                Items = webhookItems
-            }
+            new() { Title = "General & Performance", ShortTitle = "General", Icon = "ApplicationCogOutline", Items = general },
+            new() { Title = "Auto Updates & Sync", ShortTitle = "Updates", Icon = "CloudSyncOutline", Items = updates },
+            new() { Title = "Webhooks & Alerts", ShortTitle = "Webhooks", Icon = "Webhook", Items = webhooks }
         };
     }
 }

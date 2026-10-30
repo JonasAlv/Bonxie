@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialIcons="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              xmlns:vms="clr-namespace:Skua.App.Avalonia.ViewModels"
+             xmlns:uc="clr-namespace:Skua.App.Avalonia.UserControls"
              x:DataType="vms:ScriptLoaderViewModel"
              x:Class="Skua.App.Avalonia.Views.ScriptLoaderView">
   
@@ -178,15 +179,32 @@
             </Button>
         </Grid>
         
-        <!-- 3. Script Logs Framed Card -->
-        <Border Grid.Row="2"
-                Background="{DynamicResource SkuaSurfaceBrush}"
-                BorderBrush="{DynamicResource SkuaBorderBrush}"
-                BorderThickness="1"
-                CornerRadius="6"
-                ClipToBounds="True">
-            <ContentControl Content="{Binding ScriptLogs}" />
-        </Border>
+        <!-- 3. Script log: header with its actions, then the log (lines wrap; the copy hint doesn't fit here) -->
+        <Grid Grid.Row="2" RowDefinitions="Auto,*" RowSpacing="6">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="6">
+                <TextBlock Grid.Column="0" Classes="section-label" Text="SCRIPT LOG" />
+                <Border Grid.Column="1" Classes="count">
+                    <TextBlock Text="{Binding ScriptLogs.Logs.Count}" />
+                </Border>
+                <Button Grid.Column="3" Classes="skua-button small" Width="26" Padding="0" HorizontalContentAlignment="Center"
+                        ToolTip.Tip="Copy the selected lines, or the whole log" Click="CopyLog_Click">
+                    <materialIcons:MaterialIcon Kind="ContentCopy" Width="14" Height="14" />
+                </Button>
+                <Button Grid.Column="4" Classes="skua-button small" Width="26" Padding="0" HorizontalContentAlignment="Center"
+                        ToolTip.Tip="Clear the selected lines" Click="DeselectLog_Click">
+                    <materialIcons:MaterialIcon Kind="SelectionRemove" Width="14" Height="14" />
+                </Button>
+                <Button Grid.Column="5" Classes="skua-button small" Width="26" Padding="0" HorizontalContentAlignment="Center"
+                        ToolTip.Tip="Save the log to a file" Command="{Binding ScriptLogs.SaveLogCommand}">
+                    <materialIcons:MaterialIcon Kind="ContentSave" Width="14" Height="14" />
+                </Button>
+                <Button Grid.Column="6" Classes="skua-button small skua-danger-soft" Width="26" Padding="0" HorizontalContentAlignment="Center"
+                        ToolTip.Tip="Clear the log" Command="{Binding ScriptLogs.ClearLogCommand}">
+                    <materialIcons:MaterialIcon Kind="TrashCanOutline" Width="14" Height="14" />
+                </Button>
+            </Grid>
+            <uc:LogTabUserControl Grid.Row="1" x:Name="ScriptLog" DataContext="{Binding ScriptLogs}" WrapLines="True" ShowCopyHint="False" />
+        </Grid>
         
         <!-- 4. Report Issues Button -->
         <Button Grid.Row="3"

@@ -6,6 +6,7 @@ using Skua.Shared.Avalonia.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 
 namespace Skua.App.Avalonia.ViewModels.Packets;
@@ -18,7 +19,8 @@ public partial class PacketLoggerViewModel : BotControlViewModelBase
         _flash = flash;
         _fileDialog = fileDialog;
         _allPacketFilters = filters.ToList();
-        _visiblePacketFilters = _allPacketFilters.ToList();
+        foreach (PacketLogFilterViewModel filter in _allPacketFilters)
+            filter.PropertyChanged += OnFilterPropertyChanged;
     }
 
     private readonly IFlashUtil _flash;
@@ -30,19 +32,12 @@ public partial class PacketLoggerViewModel : BotControlViewModelBase
     private ObservableCollection<string> _filteredPacketLogs = new();
 
     [ObservableProperty]
-    private List<PacketLogFilterViewModel> _visiblePacketFilters;
-
-    [ObservableProperty]
     private string _packetSearchText = string.Empty;
 
-    [ObservableProperty]
-    private string _filterSearchText = string.Empty;
+    public IReadOnlyList<PacketLogFilterViewModel> PacketFilters => _allPacketFilters;
 
-    [ObservableProperty]
-    private bool _logToFile;
-
-    [ObservableProperty]
-    private bool _logClientOnly;
+    // "shown / total" for the filter button
+    public string ShownFiltersText => $"{_allPacketFilters.Count(f => f.IsChecked)} / {_allPacketFilters.Count}";
 
     private bool _isReceivingPackets;
 
@@ -59,7 +54,7 @@ public partial class PacketLoggerViewModel : BotControlViewModelBase
         }
     }
 
-    public string StartStopText => IsReceivingPackets ? "Stop Logging" : "Start Logging";
+    public string StartStopText => IsReceivingPackets ? "Stop logging" : "Start logging";
 
     [RelayCommand]
     private void ToggleLogging()
@@ -77,6 +72,24 @@ public partial class PacketLoggerViewModel : BotControlViewModelBase
     private void ClearFilters()
     {
         _allPacketFilters.ForEach(f => f.IsChecked = false);
+    }
+
+    [RelayCommand]
+    private void SelectAllFilters()
+    {
+        _allPacketFilters.ForEach(f => f.IsChecked = true);
+    }
+
+    [RelayCommand]
+    private void InvertFilters()
+    {
+        _allPacketFilters.ForEach(f => f.IsChecked = !f.IsChecked);
+    }
+
+    private void OnFilterPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PacketLogFilterViewModel.IsChecked))
+            OnPropertyChanged(nameof(ShownFiltersText));
     }
 
     [RelayCommand]
@@ -135,11 +148,6 @@ public partial class PacketLoggerViewModel : BotControlViewModelBase
         ApplyPacketSearch();
     }
 
-    partial void OnFilterSearchTextChanged(string value)
-    {
-        ApplyFilterSearch();
-    }
-
     private void AddPacket(string packetText)
     {
         Dispatcher.UIThread.Post(() =>
@@ -163,20 +171,9 @@ public partial class PacketLoggerViewModel : BotControlViewModelBase
         FilteredPacketLogs = new ObservableCollection<string>(filtered);
     }
 
-    private void ApplyFilterSearch()
-    {
-        VisiblePacketFilters = _allPacketFilters.Where(MatchesFilterSearch).ToList();
-    }
-
     private bool MatchesPacketSearch(string packet)
     {
         return string.IsNullOrWhiteSpace(PacketSearchText)
             || packet.Contains(PacketSearchText, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private bool MatchesFilterSearch(PacketLogFilterViewModel filter)
-    {
-        return string.IsNullOrWhiteSpace(FilterSearchText)
-            || filter.Content.Contains(FilterSearchText, StringComparison.OrdinalIgnoreCase);
     }
 }
