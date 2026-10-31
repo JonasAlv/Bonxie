@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# build-config.sh
+# Shared configuration and version properties reader for Bonxie
+# Reads the Mugetsu version from the Bonxie player project (no fallbacks).
+# ==============================================================================
+if [[ -z "${SCRIPT_DIR:-}" ]]; then
+    SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+fi
+
+BUILD_DIR="$SCRIPT_DIR/Build"
+CURRENT_DIR="$BUILD_DIR/payload/current"
+BINARY_DIR="$BUILD_DIR/Bonxie-linux-Binary"
+APPIMAGE_BUNDLE_DIR="$BUILD_DIR/Bonxie-linux-AppImage"
+
+APP_BIN="$SCRIPT_DIR/Skua.App.Avalonia/bin/Release/net10.0"
+MGR_BIN="$SCRIPT_DIR/Skua.Manager.Avalonia/bin/Release/net10.0"
+SWF_SOURCE="$SCRIPT_DIR/Skua.AS3/skua/bin/skua.swf"
+SKUA_ICON="$SCRIPT_DIR/Skua.Shared.Avalonia/Assets/SkuaImage.png"
+
+PROPS_FILE="$SCRIPT_DIR/Skua.App.Avalonia/Skua.App.Avalonia.csproj"
+if [[ ! -s "$PROPS_FILE" ]]; then
+    echo "Error: missing properties file: $PROPS_FILE" >&2
+    exit 1
+fi
+
+read_prop() {
+    local name="$1"
+    sed -n "s:.*<${name}[^>]*>\\([^<]*\\)</${name}>.*:\\1:p" "$PROPS_FILE" | head -n 1
+}
+
+SKUA_PLAYER_VERSION="$(read_prop SkuaPlayerVersion)"
+SKUA_PLAYER_OS="linux"
+if [[ -z "$SKUA_PLAYER_VERSION" ]]; then
+    echo "Error: Skua.App.Avalonia.csproj is missing SkuaPlayerVersion." >&2
+    exit 1
+fi
+
+# Remote URLs & Cache Paths based strictly on property values
+SKUA_PLAYER_CACHE="$SCRIPT_DIR/player/${SKUA_PLAYER_VERSION}-${SKUA_PLAYER_OS}"
+SKUA_PLAYER_ARCHIVE="Mugetsu-${SKUA_PLAYER_VERSION}-${SKUA_PLAYER_OS}.tar.gz"
+SKUA_PLAYER_URL="https://github.com/retr0gr4d3/skua-mugetsu/releases/download/v${SKUA_PLAYER_VERSION}/${SKUA_PLAYER_ARCHIVE}"
+
+SKUA_PLAYER_V2_CACHE="$SCRIPT_DIR/player/${SKUA_PLAYER_VERSION}-${SKUA_PLAYER_OS}-x86-64-v2"
+SKUA_PLAYER_V2_ARCHIVE="Mugetsu-${SKUA_PLAYER_VERSION}-${SKUA_PLAYER_OS}-x86-64-v2.tar.gz"
+SKUA_PLAYER_V2_URL="https://github.com/retr0gr4d3/skua-mugetsu/releases/download/v${SKUA_PLAYER_VERSION}/${SKUA_PLAYER_V2_ARCHIVE}"
+
+# Shared function to assemble application payload into $CURRENT_DIR
+assemble_payload() {
+    local local_player="${SKUA_PLAYER_LOCAL:-}"
+    local local_player_v2="${SKUA_PLAYER_V2_LOCAL:-}"
+
+    if [[ ! -s "$SWF_SOURCE" ]]; then
+        echo "Error: Required game client was not found: $SWF_SOURCE" >&2
+        echo "Run Skua.AS3/compile-as3.sh after installing Apache Flex mxmlc, then retry." >&2
+        exit 1
+    fi
+
+    echo "--- Building .NET solution (Release) ---"
+    rm -rf "$APP_BIN/player" "$APP_BIN/player-x86-64-v2"
+    local dotnet_args=("$SCRIPT_DIR/Skua.sln" -c Release)
+    if [[ -n "$local_player" ]]; then
+        if [[ ! -d "$local_player" || ! -x "$local_player/Mugetsu" ]]; then
+            echo "Error: SKUA_PLAYER_LOCAL must point to a folder containing an executable Mugetsu binary." >&2
+            exit 1
+        fi
+        dotnet_args+=("-p:SkuaPlayerLocal=$local_player")
+        echo "Using local Mugetsu from $local_player"
+    fi
+    if [[ -n "$local_player_v2" ]]; then
+        if [[ ! -x "$local_player_v2/Mugetsu" ]]; then
+            echo "Error: SKUA_PLAYER_V2_LOCAL must point to a folder containing an executable Mugetsu binary." >&2
+            exit 1
+        fi
+        dotnet_args+=("-p:SkuaPlayerAvxDir=$local_player_v2")
+        echo "Using local x86-64-v2 Mugetsu from $local_player_v2"
+    fi
+    dotnet build "${dotnet_args[@]}"
+
+    local required_outputs=(
+        "$APP_BIN/Bonxie"
+        "$APP_BIN/Bonxie.dll"
+        "$APP_BIN/Bonxie.runtimeconfig.json"
+        "$MGR_BIN/Bonxie.Manager"
+        "$MGR_BIN/Bonxie.Manager.dll"
+        "$MGR_BIN/Bonxie.Manager.runtimeconfig.json"
+        "$SCRIPT_DIR/Skua.Plugin.DailyTracker/bin/Release/net10.0/Skua.Plugin.DailyTracker.dll"
+        "$SCRIPT_DIR/Skua.Plugin.ButlerV5/bin/Release/net10.0/ButlerV5.dll"
+        "$SCRIPT_DIR/Skua.Plugin.Cosmetics/bin/Release/net10.0/Skua.Plugin.Cosmetics.dll"
+    )
+    for req in "${required_outputs[@]}"; do
+        if [[ ! -s "$req" ]]; then
+            echo "Error: Required build output is missing or empty: $req" >&2
+            exit 1
+        fi
+    done
+
+    echo "--- Assembling application payload in $CURRENT_DIR ---"
+    rm -rf "$CURRENT_DIR"
+    mkdir -p "$CURRENT_DIR"
+    mkdir -p "$CURRENT_DIR/Assemblies/Skills"
+    mkdir -p "$CURRENT_DIR/Assemblies/runtimes/linux-x64/native"
+    mkdir -p "$CURRENT_DIR/plugins"
+    mkdir -p "$CURRENT_DIR/FFDec"
+
+    # Copy root executables & core files
+    cp -f "$APP_BIN"/Bonxie "$CURRENT_DIR/"
+    cp -f "$APP_BIN"/Bonxie.dll "$CURRENT_DIR/"
+    cp -f "$APP_BIN"/Bonxie.runtimeconfig.json "$CURRENT_DIR/"
+    cp -f "$APP_BIN"/Bonxie.deps.json "$CURRENT_DIR/"
+    cp -f "$APP_BIN"/*.pdb "$CURRENT_DIR/" 2>/dev/null || true
+
+    cp -f "$MGR_BIN"/Bonxie.Manager "$CURRENT_DIR/"
+    cp -f "$MGR_BIN"/Bonxie.Manager.dll "$CURRENT_DIR/"
+    cp -f "$MGR_BIN"/Bonxie.Manager.runtimeconfig.json "$CURRENT_DIR/"
+    cp -f "$MGR_BIN"/Bonxie.Manager.deps.json "$CURRENT_DIR/"
+    cp -f "$MGR_BIN"/*.pdb "$CURRENT_DIR/" 2>/dev/null || true
+
+    # Copy JSON data assets
+    [ -f "$APP_BIN/QuestData.json" ] && cp -f "$APP_BIN/QuestData.json" "$CURRENT_DIR/"
+    [ -f "$APP_BIN/AdvancedSkills.json" ] && cp -f "$APP_BIN/AdvancedSkills.json" "$CURRENT_DIR/"
+    [ -f "$SCRIPT_DIR/Skua.Core/ScriptDates.json" ] && cp -f "$SCRIPT_DIR/Skua.Core/ScriptDates.json" "$CURRENT_DIR/"
+
+    # Copy all dependent DLLs to Assemblies/ and current/
+    cp -f "$APP_BIN"/*.dll "$CURRENT_DIR/Assemblies/"
+    cp -f "$MGR_BIN"/*.dll "$CURRENT_DIR/Assemblies/"
+    rm -f "$CURRENT_DIR/Assemblies/Bonxie.dll" "$CURRENT_DIR/Assemblies/Bonxie.Manager.dll"
+    cp -f "$CURRENT_DIR/Assemblies/"*.dll "$CURRENT_DIR/"
+
+    # Copy runtimes native libraries
+    if [ -d "$APP_BIN/runtimes" ]; then
+        cp -rf "$APP_BIN/runtimes" "$CURRENT_DIR/"
+        cp -rf "$APP_BIN/runtimes" "$CURRENT_DIR/Assemblies/"
+    fi
+
+    # Copy plugins
+    cp -f "$SCRIPT_DIR/Skua.Plugin.DailyTracker/bin/Release/net10.0"/Skua.Plugin.*.dll "$CURRENT_DIR/plugins/"
+    cp -f "$SCRIPT_DIR/Skua.Plugin.ButlerV5/bin/Release/net10.0"/ButlerV5.dll "$CURRENT_DIR/plugins/"
+    cp -f "$SCRIPT_DIR/Skua.Plugin.Cosmetics/bin/Release/net10.0"/Skua.Plugin.Cosmetics.dll "$CURRENT_DIR/plugins/"
+
+    # Copy skua.swf
+    cp -f "$SWF_SOURCE" "$CURRENT_DIR/skua.swf"
+
+    # Copy FFDec
+    if [[ ! -s "$SCRIPT_DIR/FFDec/ffdec.jar" || ! -d "$SCRIPT_DIR/FFDec/lib" ]]; then
+        echo "Error: FFDec runtime is incomplete under $SCRIPT_DIR/FFDec" >&2
+        exit 1
+    fi
+    cp -a "$SCRIPT_DIR/FFDec/." "$CURRENT_DIR/FFDec/"
+
+    # Copy or download official Skua Mugetsu Flash runner
+    mkdir -p "$CURRENT_DIR/player" "$CURRENT_DIR/player-x86-64-v2"
+    if [[ -s "$APP_BIN/player/Mugetsu" ]]; then
+        echo "Using bundled skua-mugetsu from $APP_BIN/player..."
+        cp -a "$APP_BIN/player/." "$CURRENT_DIR/player/"
+    elif [[ -s "$SKUA_PLAYER_CACHE/Mugetsu/Mugetsu" ]]; then
+        echo "Using cached skua-mugetsu from player/..."
+        cp -a "$SKUA_PLAYER_CACHE/Mugetsu/." "$CURRENT_DIR/player/"
+    elif [[ -s "$BUILD_DIR/player/Mugetsu" ]]; then
+        cp -a "$BUILD_DIR/player/." "$CURRENT_DIR/player/"
+    else
+        echo "Mugetsu binary not found locally. Fetching official skua-mugetsu v${SKUA_PLAYER_VERSION} from GitHub Releases..."
+        local tmp_archive="$CURRENT_DIR/skua-mugetsu.tar.gz"
+        if curl -sSL --fail "$SKUA_PLAYER_URL" -o "$tmp_archive" && [ -s "$tmp_archive" ]; then
+            tar -xzf "$tmp_archive" -C "$CURRENT_DIR/player/" --strip-components=1
+            rm -f "$tmp_archive"
+        else
+            rm -f "$tmp_archive"
+            echo "Error: Failed to download official skua-mugetsu from GitHub Releases!" >&2
+            exit 1
+        fi
+    fi
+
+    if [[ ! -s "$CURRENT_DIR/player/Mugetsu" ]]; then
+        echo "Error: Mugetsu executable not found in $CURRENT_DIR/player." >&2
+        exit 1
+    fi
+    cp -f "$CURRENT_DIR/player/Mugetsu" "$CURRENT_DIR/Mugetsu"
+    chmod +x "$CURRENT_DIR/player/Mugetsu" "$CURRENT_DIR/Mugetsu"
+
+    # Bundle x86-64-v2 player when available
+    if [[ -s "$APP_BIN/player-x86-64-v2/Mugetsu" ]]; then
+        cp -a "$APP_BIN/player-x86-64-v2/." "$CURRENT_DIR/player-x86-64-v2/"
+    elif [[ -s "$SKUA_PLAYER_V2_CACHE/Mugetsu/Mugetsu" ]]; then
+        cp -a "$SKUA_PLAYER_V2_CACHE/Mugetsu/." "$CURRENT_DIR/player-x86-64-v2/"
+    elif [[ -s "$BUILD_DIR/player-x86-64-v2/Mugetsu" ]]; then
+        cp -a "$BUILD_DIR/player-x86-64-v2/." "$CURRENT_DIR/player-x86-64-v2/"
+    fi
+
+    if [[ -s "$CURRENT_DIR/player-x86-64-v2/Mugetsu" ]]; then
+        chmod +x "$CURRENT_DIR/player-x86-64-v2/Mugetsu"
+        echo "Bundled x86-64-v2 Mugetsu player."
+    else
+        rmdir "$CURRENT_DIR/player-x86-64-v2" 2>/dev/null || true
+        echo "No x86-64-v2 Mugetsu asset is available; packaging standard player only."
+    fi
+
+    chmod +x "$CURRENT_DIR/Bonxie" "$CURRENT_DIR/Bonxie.Manager"
+}
+
