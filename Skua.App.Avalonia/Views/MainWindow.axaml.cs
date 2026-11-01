@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -268,6 +269,7 @@ public partial class MainWindow : Window
     private void RegisterLifecycleHandlers()
     {
         Opened += MainWindow_Opened;
+        Deactivated += (s, e) => CloseDropdowns();
         Closing += (s, e) => App.DisposeTrayIcon();
         Closed += MainWindow_Closed;
 
@@ -286,6 +288,13 @@ public partial class MainWindow : Window
                 }
             };
         }
+    }
+
+    private void CloseDropdowns()
+    {
+        AutoToggle?.SetCurrentValue(ToggleButton.IsCheckedProperty, false);
+        JumpToggle?.SetCurrentValue(ToggleButton.IsCheckedProperty, false);
+        MainMenuControl?.Close();
     }
 
     private void MainWindow_Opened(object? sender, EventArgs e)

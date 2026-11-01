@@ -357,8 +357,7 @@ public partial class GetScriptsService : ObservableObject, IGetScriptsService
         using HttpResponseMessage response = await ValidatedHttpExtensions.GetAsync(HttpClients.GitHubRaw, info.DownloadUrl, token);
         byte[] scriptBytes = await response.Content.ReadAsByteArrayAsync(token);
 
-        // Write beside the target and move it in, so a script being started never reads a half-written file.
-        string temporaryFile = $"{info.LocalFile}.{Guid.NewGuid():N}.tmp";
+        string temporaryFile = info.LocalFile + $".{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
         try
         {
             await File.WriteAllBytesAsync(temporaryFile, scriptBytes, token);
@@ -366,7 +365,12 @@ public partial class GetScriptsService : ObservableObject, IGetScriptsService
         }
         finally
         {
-            try { File.Delete(temporaryFile); } catch { }
+            try
+            {
+                if (File.Exists(temporaryFile))
+                    File.Delete(temporaryFile);
+            }
+            catch { }
         }
 
         info.CachedDownloaded = true;

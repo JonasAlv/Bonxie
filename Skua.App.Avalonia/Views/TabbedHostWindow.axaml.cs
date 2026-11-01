@@ -364,8 +364,19 @@ public partial class TabbedHostWindow : Window
         SizeChanged += (s, e) => { ScheduleReposition(); UpdateTabScrollButtons(); };
         ScalingChanged += (s, e) => Dispatcher.UIThread.Post(RepositionWithFreshCache, DispatcherPriority.Loaded);
 
-        PropertyChanged += (s, e) => { if (e.Property == WindowStateProperty || e.Property == IsVisibleProperty) ScheduleReposition(); };
+        PropertyChanged += (s, e) =>
+        {
+            if (e.Property == WindowStateProperty || e.Property == IsVisibleProperty)
+            {
+                if ((e.Property == WindowStateProperty && WindowState == WindowState.Minimized) ||
+                    (e.Property == IsVisibleProperty && !IsVisible))
+                    CloseHostDropdowns();
+
+                ScheduleReposition();
+            }
+        };
         Activated += (s, e) => { ScheduleReposition(); UpdateTabScrollButtons(); };
+        Deactivated += (s, e) => CloseHostDropdowns();
         Closing += OnWindowClosing;
         Closed += OnWindowClosed;
 
@@ -1159,6 +1170,8 @@ public partial class TabbedHostWindow : Window
     {
         if (e.Source != InstancesTabControl || _ignoreSelectionChange) return;
 
+        CloseHostDropdowns();
+
         if (_isGridViewEnabled && InstancesTabControl.SelectedItem != null)
         {
             ExitGridView();
@@ -1171,6 +1184,11 @@ public partial class TabbedHostWindow : Window
         {
             ScrollTabIntoView(selTab);
         }
+    }
+
+    private void CloseHostDropdowns()
+    {
+        global::Avalonia.Controls.Primitives.FlyoutBase.GetAttachedFlyout(GlobeBorder)?.Hide();
     }
 
     private void GlobeBorder_PointerPressed(object? sender, PointerPressedEventArgs e)
