@@ -37,6 +37,14 @@ internal static class Program
             .OnRestarted(_ => AppShortcutHelper.CreateOrUpdateShortcuts(createIfMissing: true))
             .Run();
 
+        // Named EventWaitHandle is a Windows-only single-instance primitive. Linux AppImages
+        // cannot create it, so run normally there instead of falling through to another throw.
+        if (!OperatingSystem.IsWindows())
+        {
+            RunApp(args);
+            return;
+        }
+
         const string eventName = @"Global\Bonxie.Manager.SingleInstance.WakeEvent";
         bool createdNew;
         try
