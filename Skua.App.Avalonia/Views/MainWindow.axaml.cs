@@ -285,9 +285,7 @@ public partial class MainWindow : Window
                         if (HeadlessOverlay != null) HeadlessOverlay.IsVisible = isHeadless;
                         if (FlashHost != null)
                         {
-                            // Keep the native X11 host alive while hiding its pixels behind the overlay.
-                            FlashHost.Opacity = isHeadless ? 0 : 1;
-                            FlashHost.IsVisible = _isFlashLoaded;
+                            FlashHost.IsVisible = !isHeadless && _isFlashLoaded;
                         }
                     });
                 }
@@ -419,8 +417,7 @@ public partial class MainWindow : Window
             Dispatcher.UIThread.Post(() =>
             {
                 LoadingBar.IsVisible = false;
-                FlashHost.Opacity = _options.HeadlessMode ? 0 : 1;
-                FlashHost.IsVisible = true;
+                FlashHost.IsVisible = !_options.HeadlessMode;
                 HeadlessOverlay.IsVisible = _options.HeadlessMode;
                 try
                 {
