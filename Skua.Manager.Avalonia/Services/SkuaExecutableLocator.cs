@@ -12,6 +12,29 @@ internal static class SkuaExecutableLocator
 
     private static string Resolve()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            string linuxDeployedPath = Path.Combine(AppContext.BaseDirectory, "Bonxie");
+            if (File.Exists(linuxDeployedPath))
+                return linuxDeployedPath;
+
+            string linuxRepositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+            string[] linuxCandidates =
+            [
+                Path.Combine(linuxRepositoryRoot, "Build", "Bonxie"),
+                Path.Combine(linuxRepositoryRoot, "Skua.App.Avalonia", "bin", "Release", "net10.0", "Bonxie"),
+                Path.Combine(linuxRepositoryRoot, "Skua.App.Avalonia", "bin", "Debug", "net10.0", "Bonxie")
+            ];
+
+            foreach (string candidate in linuxCandidates)
+            {
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+
+            return linuxDeployedPath;
+        }
+
         string vibePath = Path.Combine(AppContext.BaseDirectory, "Bonxie.exe");
         if (File.Exists(vibePath))
             return vibePath;
