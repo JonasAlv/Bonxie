@@ -2769,10 +2769,25 @@ public partial class TabbedHostWindow : Window
                 p.StartInfo.ArgumentList.Add(App.HostInstanceId);
             }
 
-            foreach (string arg in clientArgs)
+            string? embeddedPassword = null;
+            for (int i = 0; i < clientArgs.Length; i++)
             {
+                string arg = clientArgs[i];
+                if ((string.Equals(arg, "-p", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(arg, "--password", StringComparison.OrdinalIgnoreCase)) && i + 1 < clientArgs.Length)
+                {
+                    embeddedPassword = clientArgs[i + 1];
+                    i++; // skip password value
+                    continue;
+                }
+
                 if (!string.IsNullOrEmpty(arg))
                     p.StartInfo.ArgumentList.Add(arg);
+            }
+
+            if (!string.IsNullOrWhiteSpace(embeddedPassword))
+            {
+                p.StartInfo.EnvironmentVariables["SKUA_PASSWORD"] = embeddedPassword;
             }
 
             p.EnableRaisingEvents = true;
