@@ -73,9 +73,39 @@ public partial class App : Application
     }
 
     public static System.Threading.Mutex? AppMutex;
+    public static System.IO.FileStream? HostLockStream;
     public static string? HostInstanceId { get; private set; }
-    public static string HostPipeName { get; private set; } = "BonxieTabHostPipe";
+    public static string HostPipeName { get; private set; } = OperatingSystem.IsLinux()
+        ? System.IO.Path.Combine(Skua.Core.Models.ClientFileSources.TabsDIR, "host.pipe")
+        : "BonxieTabHostPipe";
     public static string HostMutexName { get; private set; } = "BonxieTabHostMutex";
+
+    private static bool TryAcquireSingleInstanceLock(string? safeInstanceId)
+    {
+        if (OperatingSystem.IsLinux())
+        {
+            string lockName = string.IsNullOrEmpty(safeInstanceId) ? "host.lock" : $"host-{safeInstanceId}.lock";
+            string lockPath = System.IO.Path.Combine(Skua.Core.Models.ClientFileSources.TabsDIR, lockName);
+            try
+            {
+                HostLockStream?.Dispose();
+                HostLockStream = new System.IO.FileStream(
+                    lockPath,
+                    System.IO.FileMode.OpenOrCreate,
+                    System.IO.FileAccess.ReadWrite,
+                    System.IO.FileShare.None);
+                Skua.Core.Models.ClientFileSources.RestrictFilePermissions(lockPath);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        AppMutex = new System.Threading.Mutex(true, HostMutexName, out bool createdNew);
+        return createdNew;
+    }
 
     public override void OnFrameworkInitializationCompleted()
     {
@@ -147,11 +177,19 @@ public partial class App : Application
             string safeInstanceId = new string(System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Where(HostInstanceId, char.IsLetterOrDigit)));
             if (!string.IsNullOrWhiteSpace(safeInstanceId))
             {
+                if (safeInstanceId.Length > 24)
+                    safeInstanceId = safeInstanceId[..24];
                 HostInstanceId = safeInstanceId;
-                HostPipeName = $"BonxieTabHostPipe-{safeInstanceId}";
+                HostPipeName = OperatingSystem.IsLinux()
+                    ? System.IO.Path.Combine(Skua.Core.Models.ClientFileSources.TabsDIR, $"host-{safeInstanceId}.pipe")
+                    : $"BonxieTabHostPipe-{safeInstanceId}";
                 HostMutexName = $"BonxieTabHostMutex-{safeInstanceId}";
             }
             else HostInstanceId = null;
+        }
+        else if (OperatingSystem.IsLinux())
+        {
+            HostPipeName = System.IO.Path.Combine(Skua.Core.Models.ClientFileSources.TabsDIR, "host.pipe");
         }
         _parentHostProcessId = hasEmbedFlag ? hostPid : 0;
         if (_parentHostProcessId > 0)
@@ -260,6 +298,15 @@ public partial class App : Application
                 string? envPass = Environment.GetEnvironmentVariable("SKUA_PASSWORD")
                     ?? Environment.GetEnvironmentVariable("BONXIE_PASSWORD");
 
+                try
+                {
+                    Environment.SetEnvironmentVariable("SKUA_USERNAME", null);
+                    Environment.SetEnvironmentVariable("BONXIE_USERNAME", null);
+                    Environment.SetEnvironmentVariable("SKUA_PASSWORD", null);
+                    Environment.SetEnvironmentVariable("BONXIE_PASSWORD", null);
+                }
+                catch { }
+
                 for (int i = 0; i < rawClientArgs.Length; i++)
                 {
                     if (string.Equals(rawClientArgs[i], "--host-instance", StringComparison.OrdinalIgnoreCase)) { i++; continue; }
@@ -297,8 +344,7 @@ public partial class App : Application
 
                 string[] clientArgs = filteredArgs.ToArray();
                 string payload = System.Text.Json.JsonSerializer.Serialize(clientArgs);
-                bool createdNew;
-                AppMutex = new System.Threading.Mutex(true, HostMutexName, out createdNew);
+                bool createdNew = TryAcquireSingleInstanceLock(HostInstanceId);
 
                 if (!createdNew)
                 {
@@ -331,8 +377,15 @@ public partial class App : Application
                     // Recover and take over as the host window.
                     try
                     {
-                        AppMutex?.Dispose();
-                        AppMutex = new System.Threading.Mutex(true, HostMutexName);
+                        if (OperatingSystem.IsLinux())
+                        {
+                            TryAcquireSingleInstanceLock(HostInstanceId);
+                        }
+                        else
+                        {
+                            AppMutex?.Dispose();
+                            AppMutex = new System.Threading.Mutex(true, HostMutexName);
+                        }
                     }
                     catch { }
                 }

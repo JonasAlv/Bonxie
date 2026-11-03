@@ -881,6 +881,16 @@ public partial class TabbedHostWindow : Window
                     await Task.Delay(100);
                 }
             }
+
+            if (OperatingSystem.IsLinux() && System.IO.Path.IsPathRooted(App.HostPipeName))
+            {
+                try
+                {
+                    if (System.IO.File.Exists(App.HostPipeName))
+                        System.IO.File.Delete(App.HostPipeName);
+                }
+                catch { }
+            }
         });
     }
 
@@ -2814,6 +2824,11 @@ public partial class TabbedHostWindow : Window
                 if (!string.IsNullOrEmpty(arg))
                     p.StartInfo.ArgumentList.Add(arg);
             }
+
+            p.StartInfo.EnvironmentVariables.Remove("SKUA_USERNAME");
+            p.StartInfo.EnvironmentVariables.Remove("BONXIE_USERNAME");
+            p.StartInfo.EnvironmentVariables.Remove("SKUA_PASSWORD");
+            p.StartInfo.EnvironmentVariables.Remove("BONXIE_PASSWORD");
 
             if (!string.IsNullOrWhiteSpace(embeddedUsername))
             {

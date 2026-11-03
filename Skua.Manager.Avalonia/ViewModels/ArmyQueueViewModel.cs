@@ -905,6 +905,7 @@ public partial class ArmyQueueViewModel : ObservableRecipient
         {
             string configDir = ClientFileSources.SkuaDIR;
             Directory.CreateDirectory(configDir);
+            ClientFileSources.RestrictDirectoryPermissions(configDir);
             string filePath = Path.Combine(configDir, "ArmyQueues.json");
 
             Dictionary<string, ArmyQueueConfig> configs = LoadAllConfigs();
@@ -930,6 +931,7 @@ public partial class ArmyQueueViewModel : ObservableRecipient
 
             configs[config.Name] = config;
             File.WriteAllText(filePath, JsonSerializer.Serialize(configs, new JsonSerializerOptions { WriteIndented = true }));
+            ClientFileSources.RestrictFilePermissions(filePath);
 
             LoadPresetsList();
             SelectedPreset = config.Name;
@@ -1001,6 +1003,7 @@ public partial class ArmyQueueViewModel : ObservableRecipient
             Dictionary<string, ArmyQueueConfig> configs = LoadAllConfigs();
             configs.Remove(SelectedPreset);
             File.WriteAllText(filePath, JsonSerializer.Serialize(configs, new JsonSerializerOptions { WriteIndented = true }));
+            ClientFileSources.RestrictFilePermissions(filePath);
 
             LoadPresetsList();
             SelectedPreset = Presets.FirstOrDefault();
@@ -1085,6 +1088,7 @@ public partial class ArmyQueueViewModel : ObservableRecipient
         {
             string configDir = ClientFileSources.SkuaDIR;
             Directory.CreateDirectory(configDir);
+            ClientFileSources.RestrictDirectoryPermissions(configDir);
             string filePath = Path.Combine(configDir, "ArmyQueueActive.json");
 
             ArmyQueueConfig config = new()
@@ -1106,6 +1110,7 @@ public partial class ArmyQueueViewModel : ObservableRecipient
             };
 
             File.WriteAllText(filePath, JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true }));
+            ClientFileSources.RestrictFilePermissions(filePath);
         }
         catch (Exception ex)
         {

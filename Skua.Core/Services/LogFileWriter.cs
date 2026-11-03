@@ -228,9 +228,14 @@ internal sealed partial class LogFileWriter : IDisposable
             try
             {
                 Directory.CreateDirectory(_directory);
+                ClientFileSources.RestrictDirectoryPermissions(_directory);
+                string currentLogPath = CurrentFile(account, day, bytes.Length);
                 // Shared, so another client (or the Manager) appending to the same file doesn't make this one fail.
-                using FileStream stream = new(CurrentFile(account, day, bytes.Length), FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
-                stream.Write(bytes);
+                using (FileStream stream = new(currentLogPath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    stream.Write(bytes);
+                }
+                ClientFileSources.RestrictFilePermissions(currentLogPath);
                 _writeFailing = false;
                 return true;
             }
