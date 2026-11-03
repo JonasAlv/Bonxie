@@ -12,6 +12,7 @@ using Skua.App.Avalonia.ViewModels;
 using Skua.App.Avalonia.ViewModels.MainMenu;
 using Skua.Core.Interfaces;
 using Skua.Core.Messaging;
+using Skua.Core.Models;
 using System;
 using System.Collections.Specialized;
 using System.Diagnostics;
@@ -347,8 +348,7 @@ public partial class MainWindow : Window
                     return;
 
                 string username = bot.Player.Username;
-                string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "BonxieTabs");
-                System.IO.Directory.CreateDirectory(dir);
+                string dir = ClientFileSources.TabsDIR;
 
                 if (username != lastWrittenUsername)
                 {
@@ -390,7 +390,7 @@ public partial class MainWindow : Window
         _tabTitleSyncTimer?.Stop();
         try
         {
-            string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "BonxieTabs");
+            string dir = ClientFileSources.TabsDIR;
             string file = System.IO.Path.Combine(dir, $"{Environment.ProcessId}.txt");
             string locationFile = System.IO.Path.Combine(dir, $"{Environment.ProcessId}.location.json");
             string temporaryFile = locationFile + ".tmp";

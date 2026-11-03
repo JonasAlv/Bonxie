@@ -425,7 +425,7 @@ public partial class TabbedHostWindow : Window
 
         Task.Run(() =>
         {
-            string dir = Path.Combine(Path.GetTempPath(), "BonxieTabs");
+            string dir = ClientFileSources.TabsDIR;
             if (!Directory.Exists(dir)) return;
 
             var updates = new List<(TabItem Tab, string Username)>();
@@ -700,6 +700,33 @@ public partial class TabbedHostWindow : Window
         ProcessNextSpawn();
     }
 
+    private static void KillProcessTree(Process? process)
+    {
+        if (process == null) return;
+        try
+        {
+#if IS_LINUX
+            try
+            {
+                using var pkill = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "pkill",
+                    Arguments = $"-9 -P {process.Id}",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                });
+            }
+            catch { }
+#endif
+
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch { }
+    }
+
     private void OnWindowClosing(object? sender, WindowClosingEventArgs e)
     {
         _isClosing = true;
@@ -715,13 +742,9 @@ public partial class TabbedHostWindow : Window
             {
                 if (info.ChildHwnd != IntPtr.Zero)
                     ShowWindow(info.ChildHwnd, SW_HIDE);
-                if (!info.Process.HasExited)
-                {
-                    info.Process.Kill();
-                    info.Process.WaitForExit(500);
-                }
-                try { File.Delete(Path.Combine(Path.GetTempPath(), "BonxieTabs", $"{info.Process.Id}.txt")); } catch { }
-                try { File.Delete(Path.Combine(Path.GetTempPath(), "BonxieTabs", $"{info.Process.Id}.location.json")); } catch { }
+                KillProcessTree(info.Process);
+                try { File.Delete(Path.Combine(ClientFileSources.TabsDIR, $"{info.Process.Id}.txt")); } catch { }
+                try { File.Delete(Path.Combine(ClientFileSources.TabsDIR, $"{info.Process.Id}.location.json")); } catch { }
                 _latestClientLocations.Remove(info.Process.Id);
                 _lastRecordedLocationByPid.Remove(info.Process.Id);
             }
@@ -2519,11 +2542,10 @@ public partial class TabbedHostWindow : Window
                 {
                     if (info.ChildHwnd != IntPtr.Zero)
                         ShowWindow(info.ChildHwnd, SW_HIDE);
-                    if (info.Process != null && !info.Process.HasExited)
-                        info.Process.Kill();
+                    KillProcessTree(info.Process);
                     if (info.Process != null)
                     {
-                        try { File.Delete(Path.Combine(Path.GetTempPath(), "BonxieTabs", $"{info.Process.Id}.txt")); } catch { }
+                        try { File.Delete(Path.Combine(ClientFileSources.TabsDIR, $"{info.Process.Id}.txt")); } catch { }
                     }
                 }
                 catch { }
@@ -3011,7 +3033,7 @@ public partial class TabbedHostWindow : Window
         {
             try
             {
-                string file = Path.Combine(Path.GetTempPath(), "BonxieTabs", $"{info.Process.Id}.txt");
+                string file = Path.Combine(ClientFileSources.TabsDIR, $"{info.Process.Id}.txt");
                 if (File.Exists(file))
                 {
                     string name = File.ReadAllText(file).Trim();
