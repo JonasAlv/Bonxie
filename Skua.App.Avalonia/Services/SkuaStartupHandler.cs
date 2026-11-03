@@ -67,8 +67,7 @@ public sealed class SkuaStartupHandler : IDisposable
             if (string.IsNullOrWhiteSpace(password))
             {
                 password = Environment.GetEnvironmentVariable("SKUA_PASSWORD")
-                    ?? Environment.GetEnvironmentVariable("BONXIE_PASSWORD")
-                    ?? Environment.GetEnvironmentVariable("VIBESKUA_PASSWORD");
+                    ?? Environment.GetEnvironmentVariable("BONXIE_PASSWORD");
             }
             if (string.IsNullOrWhiteSpace(password))
             {
@@ -89,10 +88,8 @@ public sealed class SkuaStartupHandler : IDisposable
             {
                 Environment.SetEnvironmentVariable("SKUA_USERNAME", null);
                 Environment.SetEnvironmentVariable("BONXIE_USERNAME", null);
-                Environment.SetEnvironmentVariable("VIBESKUA_USERNAME", null);
                 Environment.SetEnvironmentVariable("SKUA_PASSWORD", null);
                 Environment.SetEnvironmentVariable("BONXIE_PASSWORD", null);
-                Environment.SetEnvironmentVariable("VIBESKUA_PASSWORD", null);
             }
             catch { }
 
@@ -269,15 +266,13 @@ public sealed class SkuaStartupHandler : IDisposable
             if (string.IsNullOrWhiteSpace(options.Username))
             {
                 options.Username = Environment.GetEnvironmentVariable("SKUA_USERNAME")
-                    ?? Environment.GetEnvironmentVariable("BONXIE_USERNAME")
-                    ?? Environment.GetEnvironmentVariable("VIBESKUA_USERNAME");
+                    ?? Environment.GetEnvironmentVariable("BONXIE_USERNAME");
             }
 
             if (string.IsNullOrWhiteSpace(options.Password))
             {
                 options.Password = Environment.GetEnvironmentVariable("SKUA_PASSWORD")
-                    ?? Environment.GetEnvironmentVariable("BONXIE_PASSWORD")
-                    ?? Environment.GetEnvironmentVariable("VIBESKUA_PASSWORD");
+                    ?? Environment.GetEnvironmentVariable("BONXIE_PASSWORD");
             }
 
             return (true, options);

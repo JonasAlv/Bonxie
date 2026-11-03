@@ -256,11 +256,9 @@ public partial class App : Application
                 string[] rawClientArgs = System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Skip(args, 1));
                 List<string> filteredArgs = new();
                 string? envUser = Environment.GetEnvironmentVariable("SKUA_USERNAME")
-                    ?? Environment.GetEnvironmentVariable("BONXIE_USERNAME")
-                    ?? Environment.GetEnvironmentVariable("VIBESKUA_USERNAME");
+                    ?? Environment.GetEnvironmentVariable("BONXIE_USERNAME");
                 string? envPass = Environment.GetEnvironmentVariable("SKUA_PASSWORD")
-                    ?? Environment.GetEnvironmentVariable("BONXIE_PASSWORD")
-                    ?? Environment.GetEnvironmentVariable("VIBESKUA_PASSWORD");
+                    ?? Environment.GetEnvironmentVariable("BONXIE_PASSWORD");
 
                 for (int i = 0; i < rawClientArgs.Length; i++)
                 {
