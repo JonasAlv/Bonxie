@@ -40,7 +40,7 @@ internal static class SkuaExecutableLocator
         string userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         string[] searchDirs =
         [
-            Path.Combine(userHome, "Games", "Bonxie-linux-AppImage"),
+            Path.Combine(userHome, "Games", "Bonxie-x86_64"),
             Path.Combine(userHome, "Applications"),
             Path.Combine(userHome, "Desktop"),
             Path.Combine(userHome, "Downloads"),

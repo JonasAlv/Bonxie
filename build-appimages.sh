@@ -171,13 +171,13 @@ cp -f "$BUILD_DIR/Bonxie-Manager-x86_64.AppImage" "$APPIMAGE_BUNDLE_DIR/"
 echo "Compressing AppImage release archives..."
 (
     cd "$BUILD_DIR"
-    rm -f "Bonxie-linux-AppImage.zip" "Bonxie-linux-AppImage.tar.gz"
+    rm -f "Bonxie-x86_64.zip" "Bonxie-x86_64.tar.gz"
     if command -v zip &>/dev/null; then
-        zip -q -r "Bonxie-linux-AppImage.zip" "Bonxie-linux-AppImage"
+        zip -q -r "Bonxie-x86_64.zip" "Bonxie-x86_64"
     elif command -v bsdtar &>/dev/null; then
-        bsdtar -a -cf "Bonxie-linux-AppImage.zip" "Bonxie-linux-AppImage"
+        bsdtar -a -cf "Bonxie-x86_64.zip" "Bonxie-x86_64"
     fi
-    tar -czf "Bonxie-linux-AppImage.tar.gz" "Bonxie-linux-AppImage"
+    tar -czf "Bonxie-x86_64.tar.gz" "Bonxie-x86_64"
 )
 
 echo "=== AppImage Packaging Complete! ==="

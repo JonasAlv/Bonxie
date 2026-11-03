@@ -9,6 +9,7 @@ namespace Skua.Core.Models;
 public static class ClientFileSources
 {
     public static string AssemblyVersion { get; } = GetInformationalVersion();
+    public static Version ClientVersion { get; } = ParseClientVersion(AssemblyVersion);
     public static bool IsNightly { get; } = AssemblyVersion.Contains('-', StringComparison.Ordinal);
     public static string DisplayVersion { get; } = IsNightly ? AssemblyVersion + "-N" : AssemblyVersion;
 
@@ -199,13 +200,23 @@ public static class ClientFileSources
 
     private static string GetInformationalVersion()
     {
-        string? informational = Assembly.GetEntryAssembly()?
+        Assembly asm = Assembly.GetEntryAssembly() ?? typeof(ClientFileSources).Assembly;
+        string? informational = asm
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion;
 
         if (!string.IsNullOrWhiteSpace(informational))
             return informational.Split('+', 2)[0];
 
-        return Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0.0";
+        return asm.GetName().Version?.ToString() ?? string.Empty;
+    }
+
+    private static Version ParseClientVersion(string versionString)
+    {
+        string core = versionString.Split('-', '+')[0];
+        if (Version.TryParse(core, out Version? parsed))
+            return parsed;
+
+        return (Assembly.GetEntryAssembly() ?? typeof(ClientFileSources).Assembly).GetName().Version!;
     }
 }

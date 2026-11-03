@@ -141,20 +141,16 @@ if [[ -f "$SKUA_ICON" ]]; then
     cp -f "$SKUA_ICON" "$BINARY_DIR/bonxie-manager.png"
 fi
 
-ln -sfn "Bonxie-linux-Binary" "$BUILD_DIR/Bonxie-linux-Portable"
-
 echo "Compressing binary release archives..."
 (
     cd "$BUILD_DIR"
-    rm -f "Bonxie-linux-Binary.zip" "Bonxie-linux-Binary.tar.gz" "Bonxie-linux-Portable.zip" "Bonxie-linux-Portable.tar.gz"
+    rm -f "Bonxie-x86_64.zip" "Bonxie-x86_64.tar.gz"
     if command -v zip &>/dev/null; then
-        zip -q -r "Bonxie-linux-Binary.zip" "Bonxie-linux-Binary"
+        zip -q -r "Bonxie-x86_64.zip" "Bonxie-x86_64"
     elif command -v bsdtar &>/dev/null; then
-        bsdtar -a -cf "Bonxie-linux-Binary.zip" "Bonxie-linux-Binary"
+        bsdtar -a -cf "Bonxie-x86_64.zip" "Bonxie-x86_64"
     fi
-    tar -czf "Bonxie-linux-Binary.tar.gz" "Bonxie-linux-Binary"
-    [ -f "Bonxie-linux-Binary.zip" ] && ln -sf "Bonxie-linux-Binary.zip" "Bonxie-linux-Portable.zip"
-    ln -sf "Bonxie-linux-Binary.tar.gz" "Bonxie-linux-Portable.tar.gz"
+    tar -czf "Bonxie-x86_64.tar.gz" "Bonxie-x86_64"
 )
 
 echo "=== Binary Packaging Complete! ==="

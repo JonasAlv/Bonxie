@@ -10,15 +10,15 @@ fi
 
 BUILD_DIR="$SCRIPT_DIR/Build"
 CURRENT_DIR="$BUILD_DIR/payload/current"
-BINARY_DIR="$BUILD_DIR/Bonxie-linux-Binary"
-APPIMAGE_BUNDLE_DIR="$BUILD_DIR/Bonxie-linux-AppImage"
+BINARY_DIR="$BUILD_DIR/Bonxie-x86_64"
+APPIMAGE_BUNDLE_DIR="$BUILD_DIR/Bonxie-x86_64"
 
 APP_BIN="$SCRIPT_DIR/Skua.App.Avalonia/bin/Release/net10.0"
 MGR_BIN="$SCRIPT_DIR/Skua.Manager.Avalonia/bin/Release/net10.0"
 SWF_SOURCE="$SCRIPT_DIR/Skua.AS3/skua/bin/skua.swf"
 SKUA_ICON="$SCRIPT_DIR/Skua.Core/SkuaIcon.png"
 
-PROPS_FILE="$SCRIPT_DIR/Skua.App.Avalonia/Skua.App.Avalonia.csproj"
+PROPS_FILE="$SCRIPT_DIR/Directory.Build.props"
 if [[ ! -s "$PROPS_FILE" ]]; then
     echo "Error: missing properties file: $PROPS_FILE" >&2
     exit 1
@@ -29,10 +29,11 @@ read_prop() {
     sed -n "s:.*<${name}[^>]*>\\([^<]*\\)</${name}>.*:\\1:p" "$PROPS_FILE" | head -n 1
 }
 
+APP_VERSION="$(read_prop Version)"
 SKUA_PLAYER_VERSION="$(read_prop SkuaPlayerVersion)"
-SKUA_PLAYER_OS="linux"
-if [[ -z "$SKUA_PLAYER_VERSION" ]]; then
-    echo "Error: Skua.App.Avalonia.csproj is missing SkuaPlayerVersion." >&2
+SKUA_PLAYER_OS="$(read_prop SkuaPlayerOs)"
+if [[ -z "$APP_VERSION" || -z "$SKUA_PLAYER_VERSION" || -z "$SKUA_PLAYER_OS" ]]; then
+    echo "Error: Directory.Build.props is missing required version properties (Version, SkuaPlayerVersion, or SkuaPlayerOs)." >&2
     exit 1
 fi
 

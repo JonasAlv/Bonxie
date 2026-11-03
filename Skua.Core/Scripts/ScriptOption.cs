@@ -339,8 +339,8 @@ public partial class ScriptOption : ObservableRecipient, IScriptOption, IOptionD
     [ObjectBinding("world.myAvatar.pMC.pname.tg.text", Get = false, HasSetter = true, Default = "string.Empty")]
     private string _customGuild = string.Empty;
 
-    [ObjectBinding("world.myAvatar.pMC.pname.tg.textColor", Get = false, HasSetter = true)]
-    public int _guildColor;
+    [ObjectBinding("world.myAvatar.pMC.pname.tg.textColor", Get = false, HasSetter = true, Default = "0xFFFFFF")]
+    private int _guildColor = 0xFFFFFF;
 
     [ObjectBinding("world.WALKSPEED", Get = false, HasSetter = true, Default = "8")]
     private int _walkSpeed = 8;
@@ -386,7 +386,7 @@ public partial class ScriptOption : ObservableRecipient, IScriptOption, IOptionD
         StringCollection saveOptions = new();
         foreach (PropertyInfo pi in GetType().GetProperties())
         {
-            if (pi.Name is nameof(OptionDictionary) or nameof(CustomName) or nameof(CustomGuild))
+            if (pi.Name is nameof(OptionDictionary) or nameof(CustomName) or nameof(CustomGuild) or nameof(NameColor) or nameof(GuildColor))
                 continue;
             string key = pi.Name;
             object? value = pi.GetValue(this);
@@ -405,7 +405,7 @@ public partial class ScriptOption : ObservableRecipient, IScriptOption, IOptionD
 
         foreach (PropertyInfo pi in GetType().GetProperties())
         {
-            if (pi.Name is nameof(OptionDictionary) or nameof(CustomName) or nameof(CustomGuild))
+            if (pi.Name is nameof(OptionDictionary) or nameof(CustomName) or nameof(CustomGuild) or nameof(NameColor) or nameof(GuildColor))
                 continue;
             if (_userOptions.ContainsKey(pi.Name))
             {
@@ -424,7 +424,7 @@ public partial class ScriptOption : ObservableRecipient, IScriptOption, IOptionD
         ScriptOption defaults = new(_lazyFlash);
         foreach (PropertyInfo pi in GetType().GetProperties())
         {
-            if (pi.Name is nameof(OptionDictionary) or nameof(CustomName) or nameof(CustomGuild))
+            if (pi.Name is nameof(OptionDictionary) or nameof(CustomName) or nameof(CustomGuild) or nameof(NameColor) or nameof(GuildColor))
                 continue;
 
             pi.SetValue(this, pi.GetValue(defaults), null);

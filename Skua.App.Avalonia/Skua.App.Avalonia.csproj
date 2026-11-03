@@ -59,8 +59,6 @@
     -->
     <PropertyGroup>
         <!-- Files named as the skua-mugetsu "Build Mugetsu" workflow's draft release names them. -->
-        <SkuaPlayerVersion>1.6.0-skua.4</SkuaPlayerVersion>
-        <SkuaPlayerOs>linux</SkuaPlayerOs>
         <SkuaPlayerArchive>Mugetsu-$(SkuaPlayerVersion)-$(SkuaPlayerOs).tar.gz</SkuaPlayerArchive>
         <SkuaPlayerExe>Mugetsu</SkuaPlayerExe>
         <SkuaPlayerUrl>https://github.com/retr0gr4d3/skua-mugetsu/releases/download/v$(SkuaPlayerVersion)/$(SkuaPlayerArchive)</SkuaPlayerUrl>

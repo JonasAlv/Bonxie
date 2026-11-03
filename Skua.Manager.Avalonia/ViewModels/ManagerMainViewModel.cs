@@ -19,11 +19,11 @@ public partial class ManagerMainViewModel : ObservableRecipient
         _selectedTab = Tabs[0];
         _dialogService = dialogService;
         _settingsService = settingsService;
-        _title = "Bonxie Manager Beta";
+        _title = $"Bonxie Manager V{ClientFileSources.DisplayVersion}";
     }
 
     [ObservableProperty]
-    private string _title = "Bonxie Manager Beta";
+    private string _title = $"Bonxie Manager V{ClientFileSources.DisplayVersion}";
 
     [RelayCommand]
     private void ShowManager()

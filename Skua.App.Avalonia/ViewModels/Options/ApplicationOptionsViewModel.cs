@@ -48,8 +48,8 @@ public class OptionGroupViewModel
 
 public partial class ApplicationOptionsViewModel : BotControlViewModelBase
 {
-    // Sections by settings key (the option's Tag); everything else is a webhook option
-    private static readonly string[] GeneralKeys = { "ShowUsernameInTitle", "ClientAnim", "ReloginTryDelay", "ReloginWatchdog", "ClearFlashCache" };
+    // Sections by settings key (the option's Tag)
+    private static readonly string[] GeneralKeys = { "ShowUsernameInTitle", "LogToFile", "ClientAnim", "ReloginTryDelay", "ReloginWatchdog", "ClearFlashCache" };
     private static readonly string[] UpdateKeys =
     {
         "CheckBotScriptsUpdates", "AutoUpdateBotScripts", "CheckAdvanceSkillSetsUpdates", "AutoUpdateAdvanceSkillSetsUpdates",
@@ -107,15 +107,13 @@ public partial class ApplicationOptionsViewModel : BotControlViewModelBase
         List<DisplayOptionItemViewModelBase> InSection(string[] keys) =>
             keys.Select(k => ApplicationOptions.FirstOrDefault(i => i.Tag == k)).OfType<DisplayOptionItemViewModelBase>().ToList();
 
-        List<DisplayOptionItemViewModelBase> general = InSection(GeneralKeys);
         List<DisplayOptionItemViewModelBase> updates = InSection(UpdateKeys);
-        List<DisplayOptionItemViewModelBase> webhooks = ApplicationOptions.Except(general).Except(updates).ToList();
+        List<DisplayOptionItemViewModelBase> general = ApplicationOptions.Except(updates).ToList();
 
         OptionGroups = new List<OptionGroupViewModel>
         {
             new() { Title = "General & Performance", ShortTitle = "General", Icon = "ApplicationCogOutline", Items = general },
-            new() { Title = "Auto Updates & Sync", ShortTitle = "Updates", Icon = "CloudSyncOutline", Items = updates },
-            new() { Title = "Webhooks & Alerts", ShortTitle = "Webhooks", Icon = "Webhook", Items = webhooks }
+            new() { Title = "Auto Updates & Sync", ShortTitle = "Updates", Icon = "CloudSyncOutline", Items = updates }
         };
     }
 }
