@@ -103,7 +103,12 @@ public class BackgroundThemeViewModel : ObservableObject
     {
         try
         {
-            System.Diagnostics.Process.Start("explorer.exe", ClientFileSources.SkuaThemesDIR);
+            System.Diagnostics.ProcessStartInfo psi = new("xdg-open")
+            {
+                UseShellExecute = false
+            };
+            psi.ArgumentList.Add(ClientFileSources.SkuaThemesDIR);
+            System.Diagnostics.Process.Start(psi);
         }
         catch (Exception)
         {

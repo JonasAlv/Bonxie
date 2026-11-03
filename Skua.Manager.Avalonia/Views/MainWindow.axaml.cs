@@ -9,7 +9,6 @@ using Skua.Manager.Avalonia.ViewModels;
 using Skua.Shared.Avalonia.ViewModels;
 using System.ComponentModel;
 using System;
-using System.Runtime.InteropServices;
 
 namespace Skua.Manager.Avalonia.Views;
 
@@ -19,12 +18,6 @@ public partial class MainWindow : Window
     private readonly AvaloniaThemeService? _themeService;
     private readonly ApplicationThemesViewModel _themesViewModel;
     private bool _allowClose;
-
-    [DllImport("user32.dll")]
-    private static extern bool SetForegroundWindow(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     public MainWindow()
     {
@@ -112,12 +105,6 @@ public partial class MainWindow : Window
         recipient.Topmost = true;
         recipient.Topmost = false;
         recipient.Focus();
-
-        if (OperatingSystem.IsWindows() && recipient.TryGetPlatformHandle() is { Handle: var handle } && handle != IntPtr.Zero)
-        {
-            ShowWindow(handle, 5); // SW_SHOW: un-minimizing is done above; SW_RESTORE would also un-maximize
-            SetForegroundWindow(handle);
-        }
     }
 
     private void AllowClose(MainWindow recipient, ExitManagerMessage message)

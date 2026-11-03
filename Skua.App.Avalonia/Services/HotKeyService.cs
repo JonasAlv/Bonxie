@@ -16,9 +16,6 @@ using System.Collections.Specialized;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-#if IS_WINDOWS
-using System.Runtime.InteropServices;
-#endif
 
 namespace Skua.App.Avalonia.Services;
 
@@ -39,13 +36,8 @@ public class HotKeyService : IHotKeyService, IDisposable
     private Window? _mainWindow;
     private volatile bool _isMainWindowActive;
     private volatile bool _disposed;
-#if IS_WINDOWS
-    private IntPtr _keyboardHook = IntPtr.Zero;
-    private LowLevelKeyboardProc? _keyboardProc;
-#else
     private X11HotKeyGrabber? _x11Grabber;
     private bool _waitingForMainWindow;
-#endif
 
     public void Reload()
     {
@@ -92,7 +84,7 @@ public class HotKeyService : IHotKeyService, IDisposable
                 continue;
             }
 
-            bindings.Add(new HotKeyBinding(binding, command, parsed.Key, parsed.Modifiers, TryToVirtualKey(parsed.Key)));
+            bindings.Add(new HotKeyBinding(binding, command, parsed.Key, parsed.Modifiers));
         }
 
         lock (_bindingsLock)
@@ -101,12 +93,7 @@ public class HotKeyService : IHotKeyService, IDisposable
             _bindings.AddRange(bindings);
         }
 
-#if IS_WINDOWS
-        if (global::Skua.Core.AppStartup.HotKeys.IsHostProcess)
-            EnsureWindowsKeyboardHook();
-#else
         UpdateX11Grabs(bindings);
-#endif
     }
 
     public List<T> GetHotKeys<T>()
@@ -276,139 +263,15 @@ public class HotKeyService : IHotKeyService, IDisposable
         };
     }
 
-#if IS_WINDOWS
-    private void EnsureWindowsKeyboardHook()
-    {
-        if (_keyboardHook != IntPtr.Zero)
-            return;
-
-        IntPtr hMod = IntPtr.Zero;
-        try
-        {
-            using var curProc = System.Diagnostics.Process.GetCurrentProcess();
-            using var curMod = curProc.MainModule;
-            if (curMod != null && !string.IsNullOrEmpty(curMod.ModuleName))
-                hMod = GetModuleHandle(curMod.ModuleName);
-        }
-        catch { }
-
-        if (hMod == IntPtr.Zero)
-            hMod = GetModuleHandle(null);
-
-        _keyboardProc = KeyboardHookCallback;
-        _keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, _keyboardProc, hMod, 0);
-        if (_keyboardHook == IntPtr.Zero)
-        {
-            _keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, _keyboardProc, IntPtr.Zero, 0);
-        }
-        if (_keyboardHook == IntPtr.Zero)
-        {
-            int error = Marshal.GetLastWin32Error();
-            Console.Error.WriteLine($"HotKeyService keyboard hook install failed (Win32: {error}). Falling back to Avalonia KeyDown routing only.");
-        }
-    }
-
-    private bool IsForegroundApplicable()
-    {
-        if (_isMainWindowActive)
-            return true;
-
-        IntPtr fg = GetForegroundWindow();
-        if (fg == IntPtr.Zero)
-            return false;
-
-        GetWindowThreadProcessId(fg, out uint fgPid);
-        return global::Skua.Core.AppStartup.HotKeys.IsSkuaProcess(fgPid);
-    }
-
-    private IntPtr KeyboardHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
-    {
-        try
-        {
-            if (nCode >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
-            {
-                int vkCode = Marshal.ReadInt32(lParam);
-                KeyModifiers modifiers = GetCurrentModifiers();
-
-                if (IsForegroundApplicable() && TryExecuteVirtualBinding(vkCode, modifiers))
-                {
-                    // Match WPF behavior: consume hotkey once matched.
-                    return (IntPtr)1;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Trace.WriteLine($"Global keyboard hook callback failed: {ex}");
-        }
-
-        return CallNextHookEx(_keyboardHook, nCode, wParam, lParam);
-    }
-
-    private bool TryExecuteVirtualBinding(int vkCode, KeyModifiers modifiers)
-    {
-        if (_disposed)
-            return false;
-
-        HotKeyBinding[] bindings;
-        lock (_bindingsLock)
-            bindings = _bindings.ToArray();
-
-        foreach (HotKeyBinding binding in bindings)
-        {
-            if (!IsVkMatch(binding.VirtualKey, vkCode) || binding.Modifiers != modifiers)
-                continue;
-
-            if (!binding.Command.CanExecute(null))
-                continue;
-
-            Dispatcher.UIThread.Post(() => ExecuteBinding(binding), DispatcherPriority.Input);
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsVkMatch(int? bindingVk, int vkCode)
-    {
-        if (!bindingVk.HasValue)
-            return false;
-
-        if (bindingVk.Value == vkCode)
-            return true;
-
-        return (bindingVk.Value, vkCode) switch
-        {
-            (0x6D, 0xBD) or (0xBD, 0x6D) => true, // Subtract <-> OemMinus
-            (0x6B, 0xBB) or (0xBB, 0x6B) => true, // Add <-> OemPlus
-            (0x6E, 0xBE) or (0xBE, 0x6E) => true, // Decimal <-> OemPeriod
-            (0x6F, 0xBF) or (0xBF, 0x6F) => true, // Divide <-> OemQuestion
-            _ => false
-        };
-    }
-
-    private static KeyModifiers GetCurrentModifiers()
-    {
-        KeyModifiers modifiers = KeyModifiers.None;
-        if (((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0) || ((GetKeyState(VK_CONTROL) & 0x8000) != 0))
-            modifiers |= KeyModifiers.Control;
-        if (((GetAsyncKeyState(VK_MENU) & 0x8000) != 0) || ((GetKeyState(VK_MENU) & 0x8000) != 0))
-            modifiers |= KeyModifiers.Alt;
-        if (((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0) || ((GetKeyState(VK_SHIFT) & 0x8000) != 0))
-            modifiers |= KeyModifiers.Shift;
-        return modifiers;
-    }
-#else
-    // On Linux the game window has the keyboard while it's focused, so the KeyDown handler alone misses the hotkeys.
+    // The embedded X11 game window holds keyboard focus while playing, so XGrabKey captures hotkeys on the main window.
     private void UpdateX11Grabs(List<HotKeyBinding> bindings)
     {
-        if (!OperatingSystem.IsLinux() || _mainWindow is null)
+        if (_mainWindow is null)
             return;
 
         IPlatformHandle? handle = _mainWindow.TryGetPlatformHandle();
         if (handle is null || handle.Handle == IntPtr.Zero)
         {
-            // Not shown yet: grab once it has its X11 window.
             if (!_waitingForMainWindow)
             {
                 _waitingForMainWindow = true;
@@ -436,7 +299,6 @@ public class HotKeyService : IHotKeyService, IDisposable
                 ExecuteBinding(binding);
         }, DispatcherPriority.Input);
     }
-#endif
 
     private static KeyGestureBinding? ParseGesture(string gesture)
     {
@@ -574,60 +436,6 @@ public class HotKeyService : IHotKeyService, IDisposable
         return new KeyGestureBinding(key, modifiers);
     }
 
-    private static int? TryToVirtualKey(Key key)
-    {
-        if (key is >= Key.A and <= Key.Z)
-            return 'A' + (int)(key - Key.A);
-        if (key is >= Key.D0 and <= Key.D9)
-            return 0x30 + (int)(key - Key.D0);
-        if (key is >= Key.NumPad0 and <= Key.NumPad9)
-            return 0x60 + (int)(key - Key.NumPad0);
-        if (key is >= Key.F1 and <= Key.F24)
-            return 0x70 + (int)(key - Key.F1);
-
-        return key switch
-        {
-            Key.Enter => 0x0D,
-            Key.Tab => 0x09,
-            Key.Escape => 0x1B,
-            Key.Space => 0x20,
-            Key.Back => 0x08,
-            Key.Delete => 0x2E,
-            Key.Insert => 0x2D,
-            Key.Home => 0x24,
-            Key.End => 0x23,
-            Key.PageUp => 0x21,
-            Key.PageDown => 0x22,
-            Key.Left => 0x25,
-            Key.Up => 0x26,
-            Key.Right => 0x27,
-            Key.Down => 0x28,
-
-            // Numpad operations
-            Key.Multiply => 0x6A,
-            Key.Add => 0x6B,
-            Key.Separator => 0x6C,
-            Key.Subtract => 0x6D,
-            Key.Decimal => 0x6E,
-            Key.Divide => 0x6F,
-            Key.NumLock => 0x90,
-
-            // OEM keys
-            Key.OemTilde => 0xC0,
-            Key.OemMinus => 0xBD,
-            Key.OemPlus => 0xBB,
-            Key.OemOpenBrackets => 0xDB,
-            Key.OemCloseBrackets => 0xDD,
-            Key.OemSemicolon => 0xBA,
-            Key.OemQuotes => 0xDE,
-            Key.OemComma => 0xBC,
-            Key.OemPeriod => 0xBE,
-            Key.OemQuestion => 0xBF,
-            Key.OemPipe => 0xDC,
-            _ => null
-        };
-    }
-
     private bool ExecuteBinding(HotKeyBinding binding)
     {
         if (_disposed)
@@ -661,15 +469,7 @@ public class HotKeyService : IHotKeyService, IDisposable
             _mainWindow.Deactivated -= MainWindowOnDeactivated;
         }
 
-#if IS_WINDOWS
-        if (_keyboardHook != IntPtr.Zero)
-        {
-            UnhookWindowsHookEx(_keyboardHook);
-            _keyboardHook = IntPtr.Zero;
-        }
-#else
         _x11Grabber?.Dispose();
-#endif
 
         lock (_bindingsLock)
             _bindings.Clear();
@@ -677,42 +477,7 @@ public class HotKeyService : IHotKeyService, IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private sealed record HotKeyBinding(string Binding, IRelayCommand Command, Key Key, KeyModifiers Modifiers, int? VirtualKey);
+    private sealed record HotKeyBinding(string Binding, IRelayCommand Command, Key Key, KeyModifiers Modifiers);
 
     private sealed record KeyGestureBinding(Key Key, KeyModifiers Modifiers);
-
-#if IS_WINDOWS
-    private const int WH_KEYBOARD_LL = 13;
-    private const int WM_KEYDOWN = 0x0100;
-    private const int WM_SYSKEYDOWN = 0x0104;
-    private const int VK_SHIFT = 0x10;
-    private const int VK_CONTROL = 0x11;
-    private const int VK_MENU = 0x12;
-
-    private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool UnhookWindowsHookEx(IntPtr hhk);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    private static extern short GetKeyState(int nVirtKey);
-
-    [DllImport("user32.dll")]
-    private static extern short GetAsyncKeyState(int vKey);
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-    private static extern IntPtr GetModuleHandle(string? lpModuleName);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
-
-    [DllImport("user32.dll")]
-    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-#endif
 }

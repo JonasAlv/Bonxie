@@ -1,5 +1,5 @@
-using System.IO;
 using System;
+using System.IO;
 
 namespace Skua.Manager.Avalonia.Services;
 
@@ -12,50 +12,78 @@ internal static class SkuaExecutableLocator
 
     private static string Resolve()
     {
-        if (!OperatingSystem.IsWindows())
+        string? appImageEnv = Environment.GetEnvironmentVariable("APPIMAGE");
+        if (!string.IsNullOrEmpty(appImageEnv))
         {
-            string linuxDeployedPath = Path.Combine(AppContext.BaseDirectory, "Bonxie");
-            if (File.Exists(linuxDeployedPath))
-                return linuxDeployedPath;
-
-            string linuxRepositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-            string[] linuxCandidates =
-            [
-                Path.Combine(linuxRepositoryRoot, "Build", "Bonxie"),
-                Path.Combine(linuxRepositoryRoot, "Skua.App.Avalonia", "bin", "Release", "net10.0", "Bonxie"),
-                Path.Combine(linuxRepositoryRoot, "Skua.App.Avalonia", "bin", "Debug", "net10.0", "Bonxie")
-            ];
-
-            foreach (string candidate in linuxCandidates)
+            string? hostDir = Path.GetDirectoryName(appImageEnv);
+            if (!string.IsNullOrEmpty(hostDir))
             {
-                if (File.Exists(candidate))
-                    return candidate;
+                string[] appImageCandidates = [ "Bonxie-x86_64.AppImage", "Bonxie.AppImage", "Bonxie" ];
+                foreach (string name in appImageCandidates)
+                {
+                    string p = Path.Combine(hostDir, name);
+                    if (File.Exists(p) && !string.Equals(p, appImageEnv, StringComparison.Ordinal))
+                        return p;
+                }
             }
-
-            return linuxDeployedPath;
         }
 
-        string vibePath = Path.Combine(AppContext.BaseDirectory, "Bonxie.exe");
-        if (File.Exists(vibePath))
-            return vibePath;
+        string[] directCandidates = [ "Bonxie-x86_64.AppImage", "Bonxie.AppImage", "Bonxie", "Skua" ];
 
-        string deployedPath = Path.Combine(AppContext.BaseDirectory, "Skua.exe");
-        if (File.Exists(deployedPath))
-            return deployedPath;
+        foreach (string name in directCandidates)
+        {
+            string p = Path.Combine(AppContext.BaseDirectory, name);
+            if (File.Exists(p))
+                return p;
+        }
+
+        string userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string[] searchDirs =
+        [
+            Path.Combine(userHome, "Games", "Bonxie-linux-AppImage"),
+            Path.Combine(userHome, "Applications"),
+            Path.Combine(userHome, "Desktop"),
+            Path.Combine(userHome, "Downloads"),
+            Path.Combine(userHome, ".local", "bin"),
+            Path.Combine(userHome, ".local", "share", "Bonxie"),
+            "/opt/Bonxie"
+        ];
+
+        foreach (string dir in searchDirs)
+        {
+            if (!Directory.Exists(dir))
+                continue;
+
+            foreach (string name in directCandidates)
+            {
+                string p = Path.Combine(dir, name);
+                if (File.Exists(p))
+                    return p;
+            }
+        }
+
+        string? pathEnv = Environment.GetEnvironmentVariable("PATH");
+        if (!string.IsNullOrEmpty(pathEnv))
+        {
+            foreach (string dir in pathEnv.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+            {
+                foreach (string name in directCandidates)
+                {
+                    string candidate = Path.Combine(dir, name);
+                    if (File.Exists(candidate))
+                        return candidate;
+                }
+            }
+        }
 
         string repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         string[] candidates =
         [
-            Path.Combine(repositoryRoot, "Build", "Bonxie.exe"),
-            Path.Combine(repositoryRoot, "Build", "Skua.exe"),
-            Path.Combine(repositoryRoot, "Skua.App.Avalonia", "bin", "Release", "net10.0-windows", "Bonxie.exe"),
-            Path.Combine(repositoryRoot, "Skua.App.Avalonia", "bin", "Release", "net10.0-windows", "Skua.exe"),
-            Path.Combine(repositoryRoot, "Skua.App.Avalonia", "bin", "Release", "net10.0-windows", "win-x64", "Bonxie.exe"),
-            Path.Combine(repositoryRoot, "Skua.App.Avalonia", "bin", "Release", "net10.0-windows", "win-x64", "Skua.exe"),
-            Path.Combine(repositoryRoot, "Skua.App.Avalonia", "bin", "Debug", "net10.0-windows", "Bonxie.exe"),
-            Path.Combine(repositoryRoot, "Skua.App.Avalonia", "bin", "Debug", "net10.0-windows", "Skua.exe"),
-            Path.Combine(repositoryRoot, "Skua.App.Avalonia", "bin", "Debug", "net10.0-windows", "win-x64", "Bonxie.exe"),
-            Path.Combine(repositoryRoot, "Skua.App.Avalonia", "bin", "Debug", "net10.0-windows", "win-x64", "Skua.exe")
+            Path.Combine(repositoryRoot, "Build", "Bonxie-x86_64.AppImage"),
+            Path.Combine(repositoryRoot, "Build", "Bonxie"),
+            Path.Combine(repositoryRoot, "Build", "Skua"),
+            Path.Combine(repositoryRoot, "Skua.App.Avalonia", "bin", "Release", "net10.0", "Bonxie"),
+            Path.Combine(repositoryRoot, "Skua.App.Avalonia", "bin", "Debug", "net10.0", "Bonxie")
         ];
 
         foreach (string candidate in candidates)
@@ -64,6 +92,6 @@ internal static class SkuaExecutableLocator
                 return candidate;
         }
 
-        return File.Exists(vibePath) ? vibePath : deployedPath;
+        return Path.Combine(AppContext.BaseDirectory, "Bonxie");
     }
 }

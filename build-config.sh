@@ -16,7 +16,7 @@ APPIMAGE_BUNDLE_DIR="$BUILD_DIR/Bonxie-linux-AppImage"
 APP_BIN="$SCRIPT_DIR/Skua.App.Avalonia/bin/Release/net10.0"
 MGR_BIN="$SCRIPT_DIR/Skua.Manager.Avalonia/bin/Release/net10.0"
 SWF_SOURCE="$SCRIPT_DIR/Skua.AS3/skua/bin/skua.swf"
-SKUA_ICON="$SCRIPT_DIR/Skua.Shared.Avalonia/Assets/SkuaImage.png"
+SKUA_ICON="$SCRIPT_DIR/Skua.Core/SkuaIcon.png"
 
 PROPS_FILE="$SCRIPT_DIR/Skua.App.Avalonia/Skua.App.Avalonia.csproj"
 if [[ ! -s "$PROPS_FILE" ]]; then
@@ -142,7 +142,7 @@ assemble_payload() {
     cp -f "$SWF_SOURCE" "$CURRENT_DIR/skua.swf"
 
     # Copy FFDec
-    if [[ ! -s "$SCRIPT_DIR/FFDec/ffdec.jar" || ! -d "$SCRIPT_DIR/FFDec/lib" ]]; then
+    if [[ ! -s "$SCRIPT_DIR/FFDec/ffdec.jar" || ! -x "$SCRIPT_DIR/FFDec/ffdec.sh" || ! -d "$SCRIPT_DIR/FFDec/lib" ]]; then
         echo "Error: FFDec runtime is incomplete under $SCRIPT_DIR/FFDec" >&2
         exit 1
     fi

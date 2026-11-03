@@ -1,121 +1,19 @@
-using Skua.Core.Interfaces;
-using System.Collections.Generic;
-using System.Threading.Tasks;
-
-namespace Skua.App.Avalonia.Services;
-
-#if IS_WINDOWS
-using Skua.Core.Models;
-using System.IO;
-using System.Linq;
-using global::Avalonia.Platform.Storage;
-using WinForms = System.Windows.Forms;
-public class FileDialogService : IFileDialogService
-{
-    private const string DefaultFilter = "Text Files (*.txt)|*.txt";
-
-    public string? OpenFile() => OpenFile(ClientFileSources.SkuaDIR, "All Files (*.*)|*.*");
-
-    public string? OpenFile(string filters) => OpenFile(ClientFileSources.SkuaDIR, filters);
-
-    public string? OpenFile(string initialDirectory, string filters)
-    {
-        using WinForms.OpenFileDialog dialog = new()
-        {
-            InitialDirectory = initialDirectory,
-            Filter = string.IsNullOrWhiteSpace(filters) ? "All Files (*.*)|*.*" : filters
-        };
-
-        return dialog.ShowDialog() == WinForms.DialogResult.OK ? dialog.FileName : null;
-    }
-
-    public string? OpenFolder() => OpenFolder(ClientFileSources.SkuaDIR);
-
-    public string? OpenFolder(string initialDirectory)
-    {
-        using WinForms.FolderBrowserDialog dialog = new()
-        {
-            Description = "Select the folder.",
-            UseDescriptionForTitle = true,
-            InitialDirectory = initialDirectory,
-            AutoUpgradeEnabled = true
-        };
-
-        return dialog.ShowDialog() == WinForms.DialogResult.OK ? dialog.SelectedPath : null;
-    }
-
-    public Task<string?> OpenFolderAsync() => OpenFolderAsync(ClientFileSources.SkuaDIR);
-
-    public async Task<string?> OpenFolderAsync(string initialDirectory)
-    {
-        if (global::Avalonia.Application.Current?.ApplicationLifetime is global::Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop &&
-            desktop.MainWindow?.StorageProvider is global::Avalonia.Platform.Storage.IStorageProvider provider)
-        {
-            var options = new global::Avalonia.Platform.Storage.FolderPickerOpenOptions
-            {
-                AllowMultiple = false,
-                SuggestedStartLocation = !string.IsNullOrWhiteSpace(initialDirectory)
-                    ? await provider.TryGetFolderFromPathAsync(initialDirectory)
-                    : null
-            };
-            var folders = await provider.OpenFolderPickerAsync(options);
-            string? localPath = folders.FirstOrDefault()?.TryGetLocalPath();
-            if (!string.IsNullOrEmpty(localPath))
-                return localPath;
-            if (folders.Count == 0)
-                return null;
-        }
-
-        return OpenFolder(initialDirectory);
-    }
-
-    public IEnumerable<string>? OpenText()
-    {
-        string? path = OpenFile(ClientFileSources.SkuaDIR, DefaultFilter);
-        return string.IsNullOrWhiteSpace(path) ? null : File.ReadAllLines(path);
-    }
-
-    public string? Save() => Save(ClientFileSources.SkuaDIR, DefaultFilter);
-
-    public string? Save(string filters) => Save(ClientFileSources.SkuaDIR, filters);
-
-    public string? Save(string initialDirectory, string filters)
-    {
-        using WinForms.SaveFileDialog dialog = new()
-        {
-            InitialDirectory = initialDirectory,
-            Filter = string.IsNullOrWhiteSpace(filters) ? DefaultFilter : filters
-        };
-
-        return dialog.ShowDialog() == WinForms.DialogResult.OK ? dialog.FileName : null;
-    }
-
-    public void SaveText(string contents)
-    {
-        string? path = Save();
-        if (!string.IsNullOrWhiteSpace(path))
-            File.WriteAllText(path, contents);
-    }
-
-    public void SaveText(IEnumerable<string> contents)
-    {
-        string? path = Save();
-        if (!string.IsNullOrWhiteSpace(path))
-            File.WriteAllLines(path, contents);
-    }
-}
-#else
 using CommunityToolkit.Mvvm.DependencyInjection;
+using Skua.Core.Interfaces;
 using Skua.Core.Models;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using global::Avalonia.Controls;
 using global::Avalonia.Controls.ApplicationLifetimes;
 using global::Avalonia.Platform.Storage;
 using global::Avalonia.Threading;
 
-// No WinForms here: Avalonia's StorageProvider shows the system dialog (the desktop portal or GTK).
+namespace Skua.App.Avalonia.Services;
+
+// Avalonia's StorageProvider shows the system dialog (the desktop portal or GTK).
 // Its pickers are async, so the synchronous methods wait for them in a nested dispatcher frame,
 // which keeps the UI responsive while the dialog is open.
 public class FileDialogService : IFileDialogService
@@ -247,7 +145,6 @@ public class FileDialogService : IFileDialogService
         if (global::Avalonia.Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
             return null;
 
-        // The window the user clicked in owns the dialog; the main window otherwise.
         Window? owner = desktop.Windows.FirstOrDefault(w => w.IsActive) ?? desktop.MainWindow;
         return owner?.StorageProvider;
     }
@@ -259,7 +156,7 @@ public class FileDialogService : IFileDialogService
             : null;
     }
 
-    // WinForms filter strings ("JSON Files (*.json)|*.json|All files (*.*)|*.*") as Avalonia file types.
+    // Filter strings ("JSON Files (*.json)|*.json|All files (*.*)|*.*") as Avalonia file types.
     private static List<FilePickerFileType> ParseFilters(string filters)
     {
         string[] parts = filters.Split('|');
@@ -277,4 +174,3 @@ public class FileDialogService : IFileDialogService
         return types;
     }
 }
-#endif

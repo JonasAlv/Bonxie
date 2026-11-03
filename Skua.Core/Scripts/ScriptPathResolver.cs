@@ -118,8 +118,7 @@ public sealed class ScriptPathResolver : IScriptPathResolver
                 errors.Add($"{candidate}: {error}");
         }
 
-        existing = existing.Distinct(
-            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal).ToList();
+        existing = existing.Distinct(StringComparer.Ordinal).ToList();
 
         ScriptPathResolution resolution = new(existing.FirstOrDefault(), existing, errors.Count > 0 ? string.Join("; ", errors) : null);
         if (resolution.SelectedPath != null)
@@ -128,16 +127,13 @@ public sealed class ScriptPathResolver : IScriptPathResolver
         return resolution;
     }
 
-    // Linux filesystems distinguish case, while script catalogs commonly use Windows-style paths.
+    // Linux filesystems distinguish case, while script catalogs commonly use mixed-case paths.
     // Resolve one segment at a time and refuse ambiguous matches instead of guessing.
     private static string? ResolveExistingFile(string path, out string? error)
     {
         error = null;
         if (File.Exists(path))
             return path;
-
-        if (!OperatingSystem.IsLinux())
-            return null;
 
         try
         {

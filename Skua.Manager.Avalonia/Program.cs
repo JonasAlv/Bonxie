@@ -1,23 +1,27 @@
 using Avalonia;
+using Avalonia.Skia;
 using Avalonia.Threading;
+using Avalonia.X11;
 using CommunityToolkit.Mvvm.Messaging;
 using Skua.Core.Messaging;
-using Skua.Shared.Avalonia.Utils;
+using Skua.Core.Models;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
-using System.Threading;
-using Velopack;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace Skua.Manager.Avalonia;
 
 internal static class Program
 {
-    private static EventWaitHandle? _singleInstanceWaitHandle;
+    private static FileStream? _singleInstanceLockStream;
 
     static Program()
     {
@@ -28,73 +32,107 @@ internal static class Program
     public static void Main(string[] args)
     {
         InitializeAssemblyResolvers();
+        ClientFileSources.EnsureInitialized();
 
-        VelopackApp.Build()
-            .OnAfterInstallFastCallback(_ => AppShortcutHelper.CreateOrUpdateShortcuts(createIfMissing: true))
-            .OnAfterUpdateFastCallback(_ => AppShortcutHelper.CreateOrUpdateShortcuts(createIfMissing: true))
-            .OnBeforeUninstallFastCallback(_ => AppShortcutHelper.RemoveClientShortcuts())
-            .OnFirstRun(_ => AppShortcutHelper.CreateOrUpdateShortcuts(createIfMissing: true))
-            .OnRestarted(_ => AppShortcutHelper.CreateOrUpdateShortcuts(createIfMissing: true))
-            .Run();
+        string socketPath = Path.Combine(ClientFileSources.TabsDIR, "manager.sock");
+        string lockPath = Path.Combine(ClientFileSources.TabsDIR, "manager.lock");
 
-        // Named EventWaitHandle is a Windows-only single-instance primitive. Linux AppImages
-        // cannot create it, so run normally there instead of falling through to another throw.
-        if (!OperatingSystem.IsWindows())
-        {
-            RunApp(args);
-            return;
-        }
-
-        const string eventName = @"Global\Bonxie.Manager.SingleInstance.WakeEvent";
-        bool createdNew;
         try
         {
-            _singleInstanceWaitHandle = new EventWaitHandle(false, EventResetMode.AutoReset, eventName, out createdNew);
+            using Socket client = new(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            client.Connect(new UnixDomainSocketEndPoint(socketPath));
+            client.Send(Encoding.UTF8.GetBytes("SHOW\n"));
+            client.Close();
+            return;
         }
         catch
         {
-            _singleInstanceWaitHandle = new EventWaitHandle(false, EventResetMode.AutoReset, "Bonxie.Manager.SingleInstance.WakeEvent", out createdNew);
+            try { if (File.Exists(socketPath)) File.Delete(socketPath); } catch { }
         }
 
-        if (!createdNew)
+        try
         {
-            // Another manager is already running! Wake it up and terminate this second instance immediately.
-            try
-            {
-                _singleInstanceWaitHandle.Set();
-            }
-            catch
-            {
-            }
+            _singleInstanceLockStream = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            ClientFileSources.RestrictFilePermissions(lockPath);
+        }
+        catch
+        {
             return;
         }
 
-        // We are the single running instance. Listen for signals from subsequent launch attempts.
-        ThreadPool.RegisterWaitForSingleObject(_singleInstanceWaitHandle, (state, timedOut) =>
+        try
         {
-            if (!timedOut)
+            Socket listenerSocket = new(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            listenerSocket.Bind(new UnixDomainSocketEndPoint(socketPath));
+            ClientFileSources.RestrictFilePermissions(socketPath);
+            listenerSocket.Listen(5);
+
+            Task.Run(async () =>
             {
-                Dispatcher.UIThread.Post(() =>
+                byte[] buffer = new byte[64];
+                while (true)
                 {
-                    StrongReferenceMessenger.Default.Send(new ShowMainWindowMessage());
-                });
-            }
-        }, null, Timeout.Infinite, false);
+                    try
+                    {
+                        using Socket handler = await listenerSocket.AcceptAsync();
+                        int read = await handler.ReceiveAsync(buffer, SocketFlags.None);
+                        if (read > 0)
+                        {
+                            Dispatcher.UIThread.Post(() =>
+                            {
+                                StrongReferenceMessenger.Default.Send(new ShowMainWindowMessage());
+                            });
+                        }
+                    }
+                    catch
+                    {
+                        break;
+                    }
+                }
+            });
+
+            AppDomain.CurrentDomain.ProcessExit += (s, e) =>
+            {
+                try { listenerSocket.Dispose(); } catch { }
+                try { if (File.Exists(socketPath)) File.Delete(socketPath); } catch { }
+                try { _singleInstanceLockStream?.Dispose(); } catch { }
+            };
+        }
+        catch
+        {
+        }
 
         RunApp(args);
     }
 
-    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-    private static extern bool SetDllDirectory(string lpPathName);
-
     private static void InitializeAssemblyResolvers()
     {
         string assembliesDir = Path.Combine(AppContext.BaseDirectory, "Assemblies");
+        HashSet<string>? assembliesSet = null;
         if (Directory.Exists(assembliesDir))
         {
             try
             {
-                SetDllDirectory(assembliesDir);
+                assembliesSet = new HashSet<string>(
+                    Directory.EnumerateFiles(assembliesDir, "*.dll").Select(Path.GetFileName)!,
+                    StringComparer.OrdinalIgnoreCase);
+            }
+            catch
+            {
+            }
+        }
+
+        string arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "linux-arm64" : "linux-x64";
+
+        string runtimeNativeDir = Path.Combine(AppContext.BaseDirectory, "Assemblies", "runtimes", arch, "native");
+        HashSet<string>? runtimeNativeSet = null;
+        if (Directory.Exists(runtimeNativeDir))
+        {
+            try
+            {
+                runtimeNativeSet = new HashSet<string>(
+                    Directory.EnumerateFiles(runtimeNativeDir).Select(Path.GetFileName)!,
+                    StringComparer.OrdinalIgnoreCase);
             }
             catch
             {
@@ -107,31 +145,32 @@ internal static class Program
                 return null;
 
             string fileName = $"{assemblyName.Name}.dll";
-            string path = Path.Combine(AppContext.BaseDirectory, "Assemblies", fileName);
-            if (File.Exists(path))
-                return context.LoadFromAssemblyPath(path);
+            if (assembliesSet != null && assembliesSet.Contains(fileName))
+                return context.LoadFromAssemblyPath(Path.Combine(assembliesDir, fileName));
 
-            path = Path.Combine(AppContext.BaseDirectory, fileName);
-            if (File.Exists(path))
-                return context.LoadFromAssemblyPath(path);
+            string rootPath = Path.Combine(AppContext.BaseDirectory, fileName);
+            if (File.Exists(rootPath))
+                return context.LoadFromAssemblyPath(rootPath);
 
             return null;
         };
 
         AssemblyLoadContext.Default.ResolvingUnmanagedDll += (assembly, unmanagedDllName) =>
         {
-            string fileName = unmanagedDllName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+            const string ext = ".so";
+            string fileName = unmanagedDllName.EndsWith(ext, StringComparison.OrdinalIgnoreCase)
                 ? unmanagedDllName
-                : $"{unmanagedDllName}.dll";
+                : $"{unmanagedDllName}{ext}";
 
-            string path = Path.Combine(AppContext.BaseDirectory, "Assemblies", fileName);
-            if (File.Exists(path))
-                return NativeLibrary.Load(path);
+            if (assembliesSet != null && assembliesSet.Contains(fileName))
+                return NativeLibrary.Load(Path.Combine(assembliesDir, fileName));
 
-            string arch = Environment.Is64BitProcess ? "win-x64" : "win-x86";
-            string runtimePath = Path.Combine(AppContext.BaseDirectory, "Assemblies", "runtimes", arch, "native", fileName);
-            if (File.Exists(runtimePath))
-                return NativeLibrary.Load(runtimePath);
+            if (runtimeNativeSet != null && runtimeNativeSet.Contains(fileName))
+                return NativeLibrary.Load(Path.Combine(runtimeNativeDir, fileName));
+
+            string rootNative = Path.Combine(AppContext.BaseDirectory, "runtimes", arch, "native", fileName);
+            if (File.Exists(rootNative))
+                return NativeLibrary.Load(rootNative);
 
             return IntPtr.Zero;
         };
@@ -146,13 +185,12 @@ internal static class Program
                 return existing;
 
             string assemblyName = new AssemblyName(args.Name).Name + ".dll";
-            string path = Path.Combine(AppContext.BaseDirectory, "Assemblies", assemblyName);
-            if (File.Exists(path))
-                return Assembly.LoadFrom(path);
+            if (assembliesSet != null && assembliesSet.Contains(assemblyName))
+                return Assembly.LoadFrom(Path.Combine(assembliesDir, assemblyName));
 
-            path = Path.Combine(AppContext.BaseDirectory, assemblyName);
-            if (File.Exists(path))
-                return Assembly.LoadFrom(path);
+            string rootPath = Path.Combine(AppContext.BaseDirectory, assemblyName);
+            if (File.Exists(rootPath))
+                return Assembly.LoadFrom(rootPath);
 
             return null;
         };
@@ -163,11 +201,6 @@ internal static class Program
     {
         try
         {
-            Skua.Core.Models.ClientFileSources.EnsureInitialized();
-            if (AppShortcutHelper.IsInstalled())
-            {
-                AppShortcutHelper.CreateOrUpdateShortcuts(createIfMissing: false);
-            }
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         }
         catch (Exception ex)
@@ -179,12 +212,9 @@ internal static class Program
     public static AppBuilder BuildAvaloniaApp()
     {
         AppBuilder builder = AppBuilder.Configure<App>()
-            .UsePlatformDetect()
-            .With(new Win32PlatformOptions
-            {
-                RenderingMode = new[] { Win32RenderingMode.AngleEgl, Win32RenderingMode.Software },
-                CompositionMode = new[] { Win32CompositionMode.WinUIComposition, Win32CompositionMode.RedirectionSurface }
-            });
+            .UseX11()
+            .UseSkia();
+
 #if DEBUG
         builder = builder.WithDeveloperTools();
 #endif

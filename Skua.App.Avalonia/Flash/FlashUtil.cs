@@ -69,7 +69,7 @@ public class FlashUtil : IFlashUtil
     {
         get
         {
-            string exe = OperatingSystem.IsWindows() ? "Mugetsu.exe" : "Mugetsu";
+            const string exe = "Mugetsu";
             string avxPlayer = Path.Combine(AppContext.BaseDirectory, "player-x86-64-v2", exe);
             if (!System.Runtime.Intrinsics.X86.Avx2.IsSupported && File.Exists(avxPlayer))
                 return avxPlayer;
@@ -99,9 +99,8 @@ public class FlashUtil : IFlashUtil
         {
             start.ArgumentList.Add("--skua-parent");
             start.ArgumentList.Add(ParentWindow.ToString(CultureInfo.InvariantCulture));
-            // On Linux the parent is an X11 window; the player would otherwise prefer Wayland, where it can't be embedded.
-            if (!OperatingSystem.IsWindows())
-                start.Environment.Remove("WAYLAND_DISPLAY");
+            // The parent is an X11 window; the player would otherwise prefer Wayland, where it can't be embedded.
+            start.Environment.Remove("WAYLAND_DISPLAY");
         }
         start.ArgumentList.Add(SwfPath);
         Process proc = new() { StartInfo = start };
@@ -167,7 +166,7 @@ public class FlashUtil : IFlashUtil
             return false;
         }
 
-        if (OperatingSystem.IsLinux() && File.Exists("/proc/net/tcp"))
+        if (File.Exists("/proc/net/tcp"))
         {
             if (!VerifyLinuxLoopbackPeer(remoteEp.Port, localEp.Port, expectedPid))
                 return false;

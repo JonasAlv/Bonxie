@@ -1,4 +1,4 @@
-﻿using Skua.Core.Interfaces;
+using Skua.Core.Interfaces;
 using Skua.Core.Models;
 using System.Diagnostics;
 
@@ -19,11 +19,14 @@ public class ProcessStartService : IProcessService
 
     public void OpenLink(string link)
     {
-        ProcessStartInfo ps = new(link)
+        if (string.IsNullOrWhiteSpace(link))
+            return;
+
+        ProcessStartInfo ps = new("xdg-open")
         {
-            UseShellExecute = true,
-            Verb = "open"
+            UseShellExecute = false
         };
+        ps.ArgumentList.Add(link);
         Process.Start(ps);
     }
 
@@ -57,7 +60,12 @@ public class ProcessStartService : IProcessService
         }
         catch
         {
-            Process.Start("notepad", path);
+            ProcessStartInfo psi = new("xdg-open")
+            {
+                UseShellExecute = false
+            };
+            psi.ArgumentList.Add(path);
+            Process.Start(psi);
         }
     }
 

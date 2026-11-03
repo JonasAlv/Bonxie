@@ -426,8 +426,7 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
             throw new ScriptCompileException($"Script file '{LoadedScript}' contains no class definitions after processing includes and references. Scripts must contain at least one class.", final);
         }
 
-        StringComparer pathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-        ConcurrentDictionary<string, string> sourceCache = new(pathComparer);
+        ConcurrentDictionary<string, string> sourceCache = new(StringComparer.Ordinal);
 
         // Recursively discover all transitive includes using single-pass BFS and populate sourceCache
         DiscoverAllIncludes(references, sourceCache);
@@ -570,8 +569,7 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
 
     private void DiscoverAllIncludes(HashSet<string> references, ConcurrentDictionary<string, string> sourceCache)
     {
-        StringComparer pathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-        HashSet<string> visited = new(pathComparer);
+        HashSet<string> visited = new(StringComparer.Ordinal);
         Queue<string> queue = new();
 
         _includedFilesLock.EnterReadLock();
@@ -740,10 +738,10 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
         using MemoryStream ms = new();
         ms.Write(sourceHash, 0, sourceHash.Length);
 
-        byte[] platformBytes = Encoding.UTF8.GetBytes(OperatingSystem.IsLinux() ? "linux" : OperatingSystem.IsWindows() ? "windows" : "other");
+        byte[] platformBytes = Encoding.UTF8.GetBytes("linux");
         ms.Write(platformBytes, 0, platformBytes.Length);
 
-        foreach (string file in includedFiles.OrderBy(f => f, OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal))
+        foreach (string file in includedFiles.OrderBy(f => f, StringComparer.Ordinal))
         {
             if (File.Exists(file))
             {
@@ -784,9 +782,8 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
         ConcurrentDictionary<string, bool> compilationCompleted = new();
         object lockObj = new();
 
-        StringComparer pathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-        ConcurrentDictionary<string, List<string>> dependencyGraph = new(pathComparer);
-        ConcurrentDictionary<string, (string source, string fileName, int hash, string cachePath)> fileInfoCache = new(pathComparer);
+        ConcurrentDictionary<string, List<string>> dependencyGraph = new(StringComparer.Ordinal);
+        ConcurrentDictionary<string, (string source, string fileName, int hash, string cachePath)> fileInfoCache = new(StringComparer.Ordinal);
 
         string cacheDir = _cacheScriptsDir;
 
@@ -817,8 +814,6 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
                 try
                 {
                     matchingFile = _includedFiles.FirstOrDefault(path => path.Equals(dep, StringComparison.Ordinal));
-                    if (matchingFile is null && OperatingSystem.IsWindows())
-                        matchingFile = _includedFiles.FirstOrDefault(path => path.Equals(dep, StringComparison.OrdinalIgnoreCase));
                 }
                 finally
                 {
@@ -880,8 +875,6 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
                     try
                     {
                         matchingFile = _includedFiles.FirstOrDefault(path => path.Equals(dep, StringComparison.Ordinal));
-                        if (matchingFile is null && OperatingSystem.IsWindows())
-                            matchingFile = _includedFiles.FirstOrDefault(path => path.Equals(dep, StringComparison.OrdinalIgnoreCase));
                     }
                     finally
                     {
@@ -906,7 +899,7 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
         }
 
         // Compute dependency-aware hashes in topological order (leaves first)
-        Dictionary<string, int> fileHashes = new(pathComparer);
+        Dictionary<string, int> fileHashes = new(StringComparer.Ordinal);
         using (SHA256 sha256 = SHA256.Create())
         {
             foreach (string file in orderedFiles)
@@ -917,7 +910,7 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
                 {
                     using MemoryStream ms = new();
                     ms.Write(srcBytes, 0, srcBytes.Length);
-                    foreach (string dep in fileDeps.OrderBy(d => d, pathComparer))
+                    foreach (string dep in fileDeps.OrderBy(d => d, StringComparer.Ordinal))
                     {
                         if (fileHashes.TryGetValue(dep, out int depHash))
                         {
@@ -1274,7 +1267,7 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
 
     private static string SanitizeScriptSourceForLinux(string source)
     {
-        if (!OperatingSystem.IsLinux() || string.IsNullOrEmpty(source))
+        if (string.IsNullOrEmpty(source))
             return source;
 
         source = source
@@ -1303,7 +1296,6 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
             }
         }
 
-        return source;
         return source;
     }
 

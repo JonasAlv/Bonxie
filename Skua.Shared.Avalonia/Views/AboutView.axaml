@@ -70,7 +70,7 @@
                         <TextBlock Classes="section" Text="OVERVIEW" Margin="0" />
                         <TextBlock Classes="body"
                                    Foreground="{DynamicResource SkuaTextBrush}"
-                                   Text="A fork of VibeSkua for Windows and Linux users, powered by Ruffle." />
+                                   Text="A Linux client and bot manager for AQW, powered by Ruffle." />
                         <Border Background="{DynamicResource SkuaAccentTintBrush}"
                                 CornerRadius="6"
                                 Padding="10,8">

@@ -101,24 +101,6 @@ public static class Services
                         {
                             AddAssemblyPath(dll);
                         }
-
-                        if (OperatingSystem.IsWindows())
-                        {
-                            string? dotnetShared = Path.GetDirectoryName(runtimeDir);
-                            string? dotnetSharedRoot = Path.GetDirectoryName(dotnetShared);
-                            string versionDir = Path.GetFileName(runtimeDir);
-                            if (!string.IsNullOrEmpty(dotnetSharedRoot))
-                            {
-                                string desktopDir = Path.Combine(dotnetSharedRoot, "Microsoft.WindowsDesktop.App", versionDir);
-                                if (Directory.Exists(desktopDir))
-                                {
-                                    foreach (string dll in Directory.EnumerateFiles(desktopDir, "*.dll"))
-                                    {
-                                        AddAssemblyPath(dll);
-                                    }
-                                }
-                            }
-                        }
                     }
 
                     string[] refPaths = {
@@ -173,8 +155,6 @@ public static class Services
             "System.Threading",
             "System.Threading.Tasks",
             "System.Timers",
-            "System.Windows.Forms",
-            "Microsoft.Win32",
             "Skua.Core",
             "Skua.Core.Interfaces",
             "Skua.Core.Models",
@@ -192,7 +172,7 @@ public static class Services
             "CommunityToolkit.Mvvm.DependencyInjection",
             "Newtonsoft.Json",
             "Newtonsoft.Json.Linq",
-        }.Where(ns => OperatingSystem.IsWindows() || ns != "System.Windows.Forms").ToArray()); // WinForms doesn't exist outside Windows
+        });
         compiler.SaveGeneratedCode = true;
         return compiler;
     }

@@ -1,21 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <!-- Windows build (WinForms hosting, Win32 tab host) unless building for or on another OS, e.g. -r linux-x64. -->
     <PropertyGroup>
-        <BonxieWindows Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier.StartsWith('win'))</BonxieWindows>
-        <BonxieWindows Condition="'$(RuntimeIdentifier)' == ''">$([MSBuild]::IsOSPlatform('Windows'))</BonxieWindows>
-    </PropertyGroup>
-
-    <PropertyGroup>
-        <OutputType>WinExe</OutputType>
-        <TargetFramework Condition="'$(BonxieWindows)' == 'true'">net10.0-windows</TargetFramework>
-        <TargetFramework Condition="'$(BonxieWindows)' != 'true'">net10.0</TargetFramework>
-        <RuntimeIdentifiers>win-x64;win-x86;linux-x64</RuntimeIdentifiers>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <ApplicationIcon>../Skua.Shared.Avalonia/Assets/SkuaIcon.ico</ApplicationIcon>
-        <ApplicationManifest>app.manifest</ApplicationManifest>
         <AssemblyName>Bonxie</AssemblyName>
         <AssemblyTitle>Bonxie</AssemblyTitle>
         <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -25,15 +16,11 @@
         <AssemblyMetadata Include="Skua.ClientId" Value="BonxieAvalonia" />
     </ItemGroup>
 
-    <PropertyGroup Condition="'$(BonxieWindows)' == 'true'">
-        <UseWindowsForms>true</UseWindowsForms>
-        <DefineConstants>$(DefineConstants);IS_WINDOWS</DefineConstants>
-    </PropertyGroup>
-
     <ItemGroup>
-        <PackageReference Include="Velopack" />
         <PackageReference Include="Avalonia" />
         <PackageReference Include="Avalonia.Desktop" />
+        <PackageReference Include="Avalonia.Skia" />
+        <PackageReference Include="Avalonia.X11" />
         <PackageReference Include="Avalonia.Controls.ColorPicker" />
         <PackageReference Include="Avalonia.Themes.Fluent" />
         <PackageReference Include="AvaloniaUI.DiagnosticsSupport" />
@@ -67,58 +54,46 @@
 
     <!--
       The game player: the Skua build of Mugetsu (GPL-3.0, source at https://github.com/retr0gr4d3/skua-mugetsu).
-      It is downloaded once into player\<version>-<os>\ at the repository root and copied to the output's player\ folder.
-      To try a local build of the player instead, pass -p:SkuaPlayerLocal=<folder with Mugetsu.exe or Mugetsu>.
+      It is downloaded once into player/<version>-linux/ at the repository root and copied to the output's player/ folder.
+      To try a local build of the player instead, pass -p:SkuaPlayerLocal=<folder with Mugetsu>.
     -->
     <PropertyGroup>
         <!-- Files named as the skua-mugetsu "Build Mugetsu" workflow's draft release names them. -->
         <SkuaPlayerVersion>1.6.0-skua.4</SkuaPlayerVersion>
-        <SkuaPlayerOs Condition="'$(BonxieWindows)' == 'true'">windows</SkuaPlayerOs>
-        <SkuaPlayerOs Condition="'$(BonxieWindows)' != 'true'">linux</SkuaPlayerOs>
-        <SkuaPlayerArchive Condition="'$(BonxieWindows)' == 'true'">Mugetsu-$(SkuaPlayerVersion)-windows.zip</SkuaPlayerArchive>
-        <SkuaPlayerArchive Condition="'$(BonxieWindows)' != 'true'">Mugetsu-$(SkuaPlayerVersion)-linux.tar.gz</SkuaPlayerArchive>
-        <SkuaPlayerExe Condition="'$(BonxieWindows)' == 'true'">Mugetsu.exe</SkuaPlayerExe>
-        <SkuaPlayerExe Condition="'$(BonxieWindows)' != 'true'">Mugetsu</SkuaPlayerExe>
+        <SkuaPlayerOs>linux</SkuaPlayerOs>
+        <SkuaPlayerArchive>Mugetsu-$(SkuaPlayerVersion)-$(SkuaPlayerOs).tar.gz</SkuaPlayerArchive>
+        <SkuaPlayerExe>Mugetsu</SkuaPlayerExe>
         <SkuaPlayerUrl>https://github.com/retr0gr4d3/skua-mugetsu/releases/download/v$(SkuaPlayerVersion)/$(SkuaPlayerArchive)</SkuaPlayerUrl>
         <SkuaPlayerCache>$(MSBuildThisFileDirectory)..\player\$(SkuaPlayerVersion)-$(SkuaPlayerOs)</SkuaPlayerCache>
         <SkuaPlayerDir Condition="'$(SkuaPlayerLocal)' != ''">$(SkuaPlayerLocal)</SkuaPlayerDir>
         <SkuaPlayerDir Condition="'$(SkuaPlayerLocal)' == ''">$(SkuaPlayerCache)\Mugetsu</SkuaPlayerDir>
 
-        <!-- The x86-64-v2 build for CPUs without AVX2, copied to player-x86-64-v2\; Bonxie picks it at startup when
-             the CPU lacks AVX2. Releases before it existed don't have it: the build then warns and ships only player\. -->
-        <SkuaPlayerAvxArchive Condition="'$(BonxieWindows)' == 'true'">Mugetsu-$(SkuaPlayerVersion)-windows-x86-64-v2.zip</SkuaPlayerAvxArchive>
-        <SkuaPlayerAvxArchive Condition="'$(BonxieWindows)' != 'true'">Mugetsu-$(SkuaPlayerVersion)-linux-x86-64-v2.tar.gz</SkuaPlayerAvxArchive>
+        <!-- The x86-64-v2 build for CPUs without AVX2, copied to player-x86-64-v2/; Bonxie picks it at startup when
+             the CPU lacks AVX2. Releases before it existed don't have it: the build then warns and ships only player/. -->
+        <SkuaPlayerAvxArchive>Mugetsu-$(SkuaPlayerVersion)-$(SkuaPlayerOs)-x86-64-v2.tar.gz</SkuaPlayerAvxArchive>
         <SkuaPlayerAvxUrl>https://github.com/retr0gr4d3/skua-mugetsu/releases/download/v$(SkuaPlayerVersion)/$(SkuaPlayerAvxArchive)</SkuaPlayerAvxUrl>
         <SkuaPlayerAvxCache>$(SkuaPlayerCache)-x86-64-v2</SkuaPlayerAvxCache>
-        <SkuaPlayerAvxDir>$(SkuaPlayerAvxCache)\Mugetsu</SkuaPlayerAvxDir>
+        <SkuaPlayerAvxDir Condition="'$(SkuaPlayerAvxDir)' == ''">$(SkuaPlayerAvxCache)\Mugetsu</SkuaPlayerAvxDir>
     </PropertyGroup>
 
     <Target Name="DownloadSkuaPlayer" Condition="'$(SkuaPlayerLocal)' == '' And !Exists('$(SkuaPlayerDir)\$(SkuaPlayerExe)')">
         <DownloadFile SourceUrl="$(SkuaPlayerUrl)" DestinationFolder="$(SkuaPlayerCache)" />
-        <Unzip Condition="'$(BonxieWindows)' == 'true'" SourceFiles="$(SkuaPlayerCache)\$(SkuaPlayerArchive)" DestinationFolder="$(SkuaPlayerCache)" />
         <!-- A tar archive keeps the player's executable mark. -->
-        <Exec Condition="'$(BonxieWindows)' != 'true'" Command="tar -xzf &quot;$(SkuaPlayerArchive)&quot;" WorkingDirectory="$(SkuaPlayerCache)" />
+        <Exec Command="tar -xzf &quot;$(SkuaPlayerArchive)&quot;" WorkingDirectory="$(SkuaPlayerCache)" />
     </Target>
 
     <Target Name="DownloadSkuaPlayerAvx" Condition="'$(SkuaPlayerLocal)' == '' And !Exists('$(SkuaPlayerAvxDir)\$(SkuaPlayerExe)')">
         <DownloadFile SourceUrl="$(SkuaPlayerAvxUrl)" DestinationFolder="$(SkuaPlayerAvxCache)" ContinueOnError="WarnAndContinue" />
-        <Unzip Condition="'$(BonxieWindows)' == 'true' And Exists('$(SkuaPlayerAvxCache)\$(SkuaPlayerAvxArchive)')" SourceFiles="$(SkuaPlayerAvxCache)\$(SkuaPlayerAvxArchive)" DestinationFolder="$(SkuaPlayerAvxCache)" />
-        <Exec Condition="'$(BonxieWindows)' != 'true' And Exists('$(SkuaPlayerAvxCache)\$(SkuaPlayerAvxArchive)')" Command="tar -xzf &quot;$(SkuaPlayerAvxArchive)&quot;" WorkingDirectory="$(SkuaPlayerAvxCache)" />
+        <Exec Condition="Exists('$(SkuaPlayerAvxCache)\$(SkuaPlayerAvxArchive)')" Command="tar -xzf &quot;$(SkuaPlayerAvxArchive)&quot;" WorkingDirectory="$(SkuaPlayerAvxCache)" />
     </Target>
 
     <Target Name="AddSkuaPlayer" BeforeTargets="AssignTargetPaths" DependsOnTargets="DownloadSkuaPlayer;DownloadSkuaPlayerAvx">
         <ItemGroup>
             <_SkuaPlayerFile Include="$(SkuaPlayerDir)\**" />
             <None Include="@(_SkuaPlayerFile)" Link="player\%(_SkuaPlayerFile.RecursiveDir)%(_SkuaPlayerFile.Filename)%(_SkuaPlayerFile.Extension)" CopyToOutputDirectory="PreserveNewest" />
-            <_SkuaPlayerAvxFile Condition="'$(SkuaPlayerLocal)' == ''" Include="$(SkuaPlayerAvxDir)\**" />
+            <_SkuaPlayerAvxFile Condition="'$(SkuaPlayerLocal)' == '' And Exists('$(SkuaPlayerAvxDir)')" Include="$(SkuaPlayerAvxDir)\**" />
             <None Include="@(_SkuaPlayerAvxFile)" Link="player-x86-64-v2\%(_SkuaPlayerAvxFile.RecursiveDir)%(_SkuaPlayerAvxFile.Filename)%(_SkuaPlayerAvxFile.Extension)" CopyToOutputDirectory="PreserveNewest" />
         </ItemGroup>
     </Target>
-
-    <ItemGroup>
-        <None Update="app.manifest">
-          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
-    </ItemGroup>
 
 </Project>

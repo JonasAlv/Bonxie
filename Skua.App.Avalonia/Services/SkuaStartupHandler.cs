@@ -255,10 +255,6 @@ public sealed class SkuaStartupHandler : IDisposable
                         case "--exit-on-finish":
                             options.ExitOnScriptStop = true;
                             break;
-                        case "--embed":
-                        case "--host-pid":
-                            NextValue();
-                            break;
                     }
                 }
             }

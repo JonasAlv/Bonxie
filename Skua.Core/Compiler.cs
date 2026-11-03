@@ -369,70 +369,37 @@ public class Compiler : CSharpScriptExecution
 
     private bool CompileOrWaitForAssembly(string source, string outputPath, ScriptLoadContext? loadContext)
     {
-        string mutexName = $"Global\\Skua_Compile_{Path.GetFileName(outputPath).Replace(".dll", "").Replace("-", "_")}";
-        Mutex? compilationMutex = null;
-
-        try
+        string lockPath = outputPath + ".lock";
+        string? lockDir = Path.GetDirectoryName(lockPath);
+        if (!string.IsNullOrEmpty(lockDir))
         {
-            compilationMutex = new Mutex(false, mutexName);
+            Directory.CreateDirectory(lockDir);
+            Skua.Core.Models.ClientFileSources.RestrictDirectoryPermissions(lockDir);
+        }
 
-            if (!compilationMutex.WaitOne(TimeSpan.FromMinutes(2)))
+        FileStream? lockStream = null;
+        DateTime deadline = DateTime.UtcNow.AddMinutes(2);
+        while (lockStream is null)
+        {
+            try
+            {
+                lockStream = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                Skua.Core.Models.ClientFileSources.RestrictFilePermissions(lockPath);
+            }
+            catch (IOException) when (DateTime.UtcNow < deadline)
+            {
+                Thread.Sleep(25);
+            }
+            catch
             {
                 ErrorType = ExecutionErrorTypes.Compilation;
                 ErrorMessage = "Timeout waiting for script compilation to complete.";
                 SetErrors(new ApplicationException(ErrorMessage));
                 return false;
             }
-
-            try
-            {
-                if (File.Exists(outputPath))
-                {
-                    if (FastVerifyAssembly(outputPath))
-                    {
-                        if (loadContext != null)
-                        {
-                            using FileStream stream = File.OpenRead(outputPath);
-                            Assembly = loadContext.LoadFromStream(stream);
-                        }
-                        else
-                        {
-                            Assembly = Assembly.LoadFrom(outputPath);
-                        }
-                        return true;
-                    }
-                    else
-                    {
-                        try
-                        {
-                            File.Delete(outputPath);
-                        }
-                        catch
-                        {
-                        }
-                    }
-                }
-
-                if (!CompileAssemblyToDisk(source, outputPath))
-                    return false;
-
-                if (loadContext != null)
-                {
-                    using FileStream stream = File.OpenRead(outputPath);
-                    Assembly = loadContext.LoadFromStream(stream);
-                }
-                else
-                {
-                    Assembly = Assembly.LoadFrom(outputPath);
-                }
-                return true;
-            }
-            finally
-            {
-                compilationMutex.ReleaseMutex();
-            }
         }
-        catch (AbandonedMutexException)
+
+        try
         {
             if (File.Exists(outputPath))
             {
@@ -449,16 +416,36 @@ public class Compiler : CSharpScriptExecution
                     }
                     return true;
                 }
+                else
+                {
+                    try
+                    {
+                        File.Delete(outputPath);
+                    }
+                    catch
+                    {
+                    }
+                }
             }
 
-            ErrorType = ExecutionErrorTypes.Compilation;
-            ErrorMessage = "Compilation was abandoned by another process.";
-            SetErrors(new ApplicationException(ErrorMessage));
-            return false;
+            if (!CompileAssemblyToDisk(source, outputPath))
+                return false;
+
+            if (loadContext != null)
+            {
+                using FileStream stream = File.OpenRead(outputPath);
+                Assembly = loadContext.LoadFromStream(stream);
+            }
+            else
+            {
+                Assembly = Assembly.LoadFrom(outputPath);
+            }
+            return true;
         }
         finally
         {
-            compilationMutex?.Dispose();
+            try { lockStream.Dispose(); } catch { }
+            try { if (File.Exists(lockPath)) File.Delete(lockPath); } catch { }
         }
     }
 

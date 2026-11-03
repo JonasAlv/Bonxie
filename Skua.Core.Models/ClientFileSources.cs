@@ -29,7 +29,7 @@ public static class ClientFileSources
 
     public static void RestrictDirectoryPermissions(string path)
     {
-        if (!OperatingSystem.IsLinux() || string.IsNullOrWhiteSpace(path))
+        if (string.IsNullOrWhiteSpace(path))
             return;
 
         try
@@ -42,7 +42,7 @@ public static class ClientFileSources
 
     public static void RestrictFilePermissions(string path)
     {
-        if (!OperatingSystem.IsLinux() || string.IsNullOrWhiteSpace(path))
+        if (string.IsNullOrWhiteSpace(path))
             return;
 
         try
@@ -57,27 +57,20 @@ public static class ClientFileSources
     {
         get
         {
-            if (OperatingSystem.IsLinux())
+            string? xdgRuntime = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
+            if (!string.IsNullOrWhiteSpace(xdgRuntime) && Directory.Exists(xdgRuntime))
             {
-                string? xdgRuntime = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
-                if (!string.IsNullOrWhiteSpace(xdgRuntime) && Directory.Exists(xdgRuntime))
-                {
-                    string dir = Path.Combine(xdgRuntime, "BonxieTabs");
-                    Directory.CreateDirectory(dir);
-                    RestrictDirectoryPermissions(dir);
-                    return dir;
-                }
-                string fallbackRunDir = Path.Combine(SkuaDIR, "run");
-                Directory.CreateDirectory(SkuaDIR);
-                RestrictDirectoryPermissions(SkuaDIR);
-                Directory.CreateDirectory(fallbackRunDir);
-                RestrictDirectoryPermissions(fallbackRunDir);
-                return fallbackRunDir;
+                string dir = Path.Combine(xdgRuntime, "BonxieTabs");
+                Directory.CreateDirectory(dir);
+                RestrictDirectoryPermissions(dir);
+                return dir;
             }
-            string winTemp = Path.Combine(Path.GetTempPath(), "BonxieTabs");
-            if (!Directory.Exists(winTemp))
-                Directory.CreateDirectory(winTemp);
-            return winTemp;
+            string fallbackRunDir = Path.Combine(SkuaDIR, "run");
+            Directory.CreateDirectory(SkuaDIR);
+            RestrictDirectoryPermissions(SkuaDIR);
+            Directory.CreateDirectory(fallbackRunDir);
+            RestrictDirectoryPermissions(fallbackRunDir);
+            return fallbackRunDir;
         }
     }
 
@@ -108,28 +101,32 @@ public static class ClientFileSources
 
                 if (!isAlreadyMigrated)
                 {
-                    using var migrationMutex = new Mutex(false, @"Global\Bonxie.Migration.Init");
-                    bool hasHandle = false;
-                    try
+                    Directory.CreateDirectory(bonxieDir);
+                    RestrictDirectoryPermissions(bonxieDir);
+                    string lockPath = Path.Combine(bonxieDir, ".migration.lock");
+                    FileStream? lockStream = null;
+                    DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+                    while (lockStream is null && DateTime.UtcNow < deadline)
                     {
                         try
                         {
-                            hasHandle = migrationMutex.WaitOne(5000, false);
+                            lockStream = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                            RestrictFilePermissions(lockPath);
                         }
-                        catch (AbandonedMutexException)
+                        catch (IOException)
                         {
-                            hasHandle = true;
+                            Thread.Sleep(25);
                         }
+                    }
 
+                    try
+                    {
                         bool stillNotMigrated = !File.Exists(migrationMarker) &&
                                                 !File.Exists(Path.Combine(bonxieDir, "Skua.settings.json")) &&
                                                 !File.Exists(Path.Combine(bonxieDir, "ClientSettings.json"));
 
                         if (stillNotMigrated)
                         {
-                            Directory.CreateDirectory(bonxieDir);
-                            RestrictDirectoryPermissions(bonxieDir);
-
                             if (Directory.Exists(legacySkuaDir))
                             {
                                 CopyDirectoryRecursive(legacySkuaDir, bonxieDir, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "plugins" });
@@ -147,8 +144,7 @@ public static class ClientFileSources
                     }
                     finally
                     {
-                        if (hasHandle)
-                            migrationMutex.ReleaseMutex();
+                        lockStream?.Dispose();
                     }
                 }
                 else
