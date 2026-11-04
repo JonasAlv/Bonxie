@@ -5,10 +5,12 @@ on:
     branches:
       - main
       - linux
+      - bonxie-linux
   pull_request:
     branches:
       - main
       - linux
+      - bonxie-linux
   workflow_dispatch:
 
 permissions:
