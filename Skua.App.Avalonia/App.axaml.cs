@@ -17,6 +17,7 @@ using Skua.Shared.Avalonia.Controls.Theming;
 using Skua.Core.AppStartup;
 using Skua.Core.Interfaces;
 using Skua.Core.Utils;
+using Newtonsoft.Json;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -35,6 +36,24 @@ public partial class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         RegisterGlobalExceptionHandlers();
+
+        JsonConvert.DefaultSettings = () => new JsonSerializerSettings
+        {
+            NullValueHandling = NullValueHandling.Ignore,
+            MissingMemberHandling = MissingMemberHandling.Ignore,
+            Converters = { new Skua.Core.Models.Converters.WholeNumberConverter() },
+            Error = (sender, args) =>
+            {
+                if (args.ErrorContext.Error.Message.Contains("No JSON content found") ||
+                    args.ErrorContext.Error.Message.Contains("Error converting value {null}"))
+                {
+                    args.ErrorContext.Handled = true;
+                    return;
+                }
+                System.Diagnostics.Trace.WriteLine($"[JSON Warning] {args.ErrorContext.Path}: {args.ErrorContext.Error.Message}");
+                args.ErrorContext.Handled = true;
+            }
+        };
 
         ServiceCollection services = new();
         services.AddCommonServices();

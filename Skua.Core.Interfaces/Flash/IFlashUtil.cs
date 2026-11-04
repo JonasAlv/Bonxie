@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
+using System.Text;
 using System.Xml.Linq;
 
 namespace Skua.Core.Interfaces;
@@ -89,14 +90,71 @@ public interface IFlashUtil : IDisposable
     /// <returns>The value of the object at the given path as a serialzied JSON string.</returns>
     string? GetGameObject(string path)
     {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
         if (path.Contains('['))
         {
-            string key = path.Split(new char[] { '"', '[', ']' }, StringSplitOptions.RemoveEmptyEntries).Last();
-            string finalPath = path.Split('[')[0];
-            return Call("getGameObjectKey", finalPath, key);
+            int lastOpen = path.LastIndexOf('[');
+            int lastClose = path.LastIndexOf(']');
+            if (lastClose == path.Length - 1 && lastOpen >= 0 && lastClose > lastOpen && !path[..lastOpen].Contains('['))
+            {
+                string key = path[(lastOpen + 1)..lastClose].Trim('"', '\'');
+                string finalPath = path[..lastOpen];
+                return Call("getGameObjectKey", finalPath, key);
+            }
+
+            string normalized = NormalizeBracketPath(path);
+            return Call("getGameObject", normalized);
         }
         return Call("getGameObject", path);
     }
+
+    private static string NormalizeBracketPath(string path)
+    {
+        var sb = new StringBuilder(path.Length);
+        bool inBracket = false;
+        for (int i = 0; i < path.Length; i++)
+        {
+            char c = path[i];
+            if (c == '[')
+            {
+                if (sb.Length > 0 && sb[^1] != '.')
+                    sb.Append('.');
+                inBracket = true;
+            }
+            else if (c == ']')
+            {
+                inBracket = false;
+            }
+            else if (inBracket && (c == '"' || c == '\''))
+            {
+                // skip quotes inside bracket
+            }
+            else
+            {
+                sb.Append(c);
+            }
+        }
+        return sb.ToString().Replace("..", ".");
+    }
+
+    private static readonly JsonSerializerSettings SafeJsonSettings = new()
+    {
+        NullValueHandling = NullValueHandling.Ignore,
+        MissingMemberHandling = MissingMemberHandling.Ignore,
+        Error = (sender, args) =>
+        {
+            if (args.ErrorContext.Error.Message.Contains("No JSON content found") ||
+                args.ErrorContext.Error.Message.Contains("Error converting value {null}"))
+            {
+                args.ErrorContext.Handled = true;
+                return;
+            }
+            System.Diagnostics.Trace.WriteLine($"[JSON Warning] {args.ErrorContext.Path}: {args.ErrorContext.Error.Message}");
+            args.ErrorContext.Handled = true;
+        }
+    };
 
     /// <summary>
     /// Gets an actionscript object at the given location and deserializes it as JSON to the given type.
@@ -109,10 +167,16 @@ public interface IFlashUtil : IDisposable
     {
         try
         {
-            return JsonConvert.DeserializeObject<T>(GetGameObject(path)!) ?? def;
+            string? raw = GetGameObject(path);
+            string? trimmed = raw?.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed == "null" || trimmed == "undefined" || trimmed == "\"\"" || trimmed == "''")
+                return def;
+            var result = JsonConvert.DeserializeObject<T>(trimmed, SafeJsonSettings);
+            return result is null ? def : result;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Trace.WriteLine($"GetGameObject<{typeof(T)}>('{path}') error: {ex.Message}");
             return def;
         }
     }
@@ -138,10 +202,16 @@ public interface IFlashUtil : IDisposable
     {
         try
         {
-            return JsonConvert.DeserializeObject<T>(GetGameObjectStatic(path)!);
+            string? raw = GetGameObjectStatic(path);
+            string? trimmed = raw?.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed == "null" || trimmed == "undefined" || trimmed == "\"\"" || trimmed == "''")
+                return def;
+            var result = JsonConvert.DeserializeObject<T>(trimmed, SafeJsonSettings);
+            return result is null ? def : result;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Trace.WriteLine($"GetGameObjectStatic<{typeof(T)}>('{path}') error: {ex.Message}");
             return def;
         }
     }
@@ -153,11 +223,23 @@ public interface IFlashUtil : IDisposable
     /// <param name="value">The value to set the object to. This can be a string, any number type or a bool.</param>
     void SetGameObject(string path, object value)
     {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
         if (path.Contains('['))
         {
-            string key = path.Split(new char[] { '"', '[', ']' }, StringSplitOptions.RemoveEmptyEntries).Last();
-            string finalPath = path.Split('[')[0];
-            Call("setGameObjectKey", finalPath, key, value);
+            int lastOpen = path.LastIndexOf('[');
+            int lastClose = path.LastIndexOf(']');
+            if (lastClose == path.Length - 1 && lastOpen >= 0 && lastClose > lastOpen && !path[..lastOpen].Contains('['))
+            {
+                string key = path[(lastOpen + 1)..lastClose].Trim('"', '\'');
+                string finalPath = path[..lastOpen];
+                Call("setGameObjectKey", finalPath, key, value);
+                return;
+            }
+
+            string normalized = NormalizeBracketPath(path);
+            Call("setGameObject", normalized, value);
             return;
         }
         Call("setGameObject", path, value);
@@ -185,10 +267,15 @@ public interface IFlashUtil : IDisposable
     {
         try
         {
-            return JsonConvert.DeserializeObject<T>(CallGameFunction(path, args)!);
+            string? raw = CallGameFunction(path, args);
+            string? trimmed = raw?.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed == "null" || trimmed == "undefined" || trimmed == "\"\"" || trimmed == "''")
+                return default;
+            return JsonConvert.DeserializeObject<T>(trimmed, SafeJsonSettings);
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Trace.WriteLine($"CallGameFunction<{typeof(T)}>('{path}') error: {ex.Message}");
             return default;
         }
     }
@@ -216,10 +303,15 @@ public interface IFlashUtil : IDisposable
     {
         try
         {
-            return JsonConvert.DeserializeObject<T>(GetArrayObject(path, index)!);
+            string? raw = GetArrayObject(path, index);
+            string? trimmed = raw?.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed == "null" || trimmed == "undefined" || trimmed == "\"\"" || trimmed == "''")
+                return def;
+            return JsonConvert.DeserializeObject<T>(trimmed, SafeJsonSettings) ?? def;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Trace.WriteLine($"GetArrayObject<{typeof(T)}>('{path}', {index}) error: {ex.Message}");
             return def;
         }
     }
@@ -235,10 +327,15 @@ public interface IFlashUtil : IDisposable
     {
         try
         {
-            return JsonConvert.DeserializeObject<List<T>>(Call("selectArrayObjects", path, selector)!)!;
+            string? raw = Call("selectArrayObjects", path, selector);
+            string? trimmed = raw?.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed) || trimmed == "null" || trimmed == "undefined" || trimmed == "\"\"" || trimmed == "''" || trimmed == "[]")
+                return new List<T>();
+            return JsonConvert.DeserializeObject<List<T>>(trimmed, SafeJsonSettings) ?? new List<T>();
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Trace.WriteLine($"SelectArrayObjects<{typeof(T)}>('{path}', '{selector}') error: {ex.Message}");
             return new List<T>();
         }
     }
