@@ -3,6 +3,7 @@ using Skua.Core.Interfaces;
 using Skua.Core.Models;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,36 +14,55 @@ using global::Avalonia.Threading;
 
 namespace Skua.App.Avalonia.Services;
 
-// Avalonia's StorageProvider shows the system dialog (the desktop portal or GTK).
-// Its pickers are async, so the synchronous methods wait for them in a nested dispatcher frame,
-// which keeps the UI responsive while the dialog is open.
+// Avalonia's StorageProvider shows the system dialog (desktop portal or GTK).
+// Pickers are async, so synchronous calls wait in a nested dispatcher frame
+// to avoid deadlocking the UI thread while the dialog is open.
+// Falls back to zenity/kdialog if the desktop portal is absent on minimal distros.
 public class FileDialogService : IFileDialogService
 {
     private const string DefaultFilter = "Text Files (*.txt)|*.txt";
 
-    public string? OpenFile() => OpenFile(ClientFileSources.SkuaDIR, "All Files (*.*)|*.*");
+    public string? OpenFile() => OpenFile(ClientFileSources.SkuaScriptsDIR, "Skua Scripts (*.cs)|*.cs|All Files (*.*)|*.*");
 
-    public string? OpenFile(string filters) => OpenFile(ClientFileSources.SkuaDIR, filters);
+    public string? OpenFile(string filters) => OpenFile(ClientFileSources.SkuaScriptsDIR, filters);
 
     public string? OpenFile(string initialDirectory, string filters)
     {
-        return RunOnUIThread(async provider =>
+        if (!string.IsNullOrWhiteSpace(initialDirectory) && !Directory.Exists(initialDirectory))
         {
-            IReadOnlyList<IStorageFile> files = await provider.OpenFilePickerAsync(new FilePickerOpenOptions
+            try { Directory.CreateDirectory(initialDirectory); } catch { }
+        }
+
+        string? result = RunOnUIThread(async provider =>
+        {
+            try
             {
-                AllowMultiple = false,
-                SuggestedStartLocation = await GetStartLocation(provider, initialDirectory),
-                FileTypeFilter = ParseFilters(string.IsNullOrWhiteSpace(filters) ? "All Files (*.*)|*.*" : filters)
-            });
-            return files.FirstOrDefault()?.TryGetLocalPath();
+                IReadOnlyList<IStorageFile> files = await provider.OpenFilePickerAsync(new FilePickerOpenOptions
+                {
+                    AllowMultiple = false,
+                    SuggestedStartLocation = await GetStartLocation(provider, initialDirectory),
+                    FileTypeFilter = ParseFilters(string.IsNullOrWhiteSpace(filters) ? "All Files (*.*)|*.*" : filters)
+                });
+                return files.FirstOrDefault()?.TryGetLocalPath();
+            }
+            catch
+            {
+                return null;
+            }
         });
+
+        if (!string.IsNullOrEmpty(result))
+            return result;
+
+        // Fallback for Linux environments where desktop portal is unavailable
+        return LinuxNativeFallbackPicker(initialDirectory, filters);
     }
 
-    public string? OpenFolder() => OpenFolder(ClientFileSources.SkuaDIR);
+    public string? OpenFolder() => OpenFolder(ClientFileSources.SkuaScriptsDIR);
 
     public string? OpenFolder(string initialDirectory) => RunOnUIThread(provider => PickFolder(provider, initialDirectory));
 
-    public Task<string?> OpenFolderAsync() => OpenFolderAsync(ClientFileSources.SkuaDIR);
+    public Task<string?> OpenFolderAsync() => OpenFolderAsync(ClientFileSources.SkuaScriptsDIR);
 
     public Task<string?> OpenFolderAsync(string initialDirectory)
     {
@@ -63,7 +83,6 @@ public class FileDialogService : IFileDialogService
     public string? Save(string initialDirectory, string filters)
     {
         List<FilePickerFileType> types = ParseFilters(string.IsNullOrWhiteSpace(filters) ? DefaultFilter : filters);
-        // "*.json" -> "json", so a name typed without an extension still gets one.
         string? extension = types.FirstOrDefault()?.Patterns?.FirstOrDefault() is { } pattern && pattern.StartsWith("*.")
             ? pattern[2..]
             : null;
@@ -95,8 +114,6 @@ public class FileDialogService : IFileDialogService
             WriteFile(path, tmp => File.WriteAllLines(tmp, contents));
     }
 
-    // Writes next to the file first and replaces it only once that worked, so a full disk or a
-    // folder without write access leaves the old file as it was; the error is shown, not thrown.
     private static void WriteFile(string path, Action<string> write)
     {
         string tmp = path + ".tmp";
@@ -107,7 +124,7 @@ public class FileDialogService : IFileDialogService
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            try { File.Delete(tmp); } catch (Exception) { }
+            try { File.Delete(tmp); } catch { }
             Ioc.Default.GetService<IDialogService>()?.ShowMessageBox($"Could not save {path}: {ex.Message}", "Save Error");
         }
     }
@@ -156,7 +173,6 @@ public class FileDialogService : IFileDialogService
             : null;
     }
 
-    // Filter strings ("JSON Files (*.json)|*.json|All files (*.*)|*.*") as Avalonia file types.
     private static List<FilePickerFileType> ParseFilters(string filters)
     {
         string[] parts = filters.Split('|');
@@ -165,12 +181,86 @@ public class FileDialogService : IFileDialogService
         {
             types.Add(new FilePickerFileType(parts[i])
             {
-                // "*.*" only matches names with a dot on Linux; "*" is every file.
                 Patterns = parts[i + 1].Split(';', StringSplitOptions.RemoveEmptyEntries)
                     .Select(p => p.Trim() == "*.*" ? "*" : p.Trim())
                     .ToArray()
             });
         }
         return types;
+    }
+
+    private static string? LinuxNativeFallbackPicker(string initialDirectory, string filters)
+    {
+        try
+        {
+            if (File.Exists("/usr/bin/zenity") || FindInPath("zenity") != null)
+            {
+                ProcessStartInfo psi = new("zenity")
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                };
+                psi.ArgumentList.Add("--file-selection");
+                psi.ArgumentList.Add("--title=Select a Skua Script");
+                if (!string.IsNullOrWhiteSpace(initialDirectory) && Directory.Exists(initialDirectory))
+                {
+                    psi.ArgumentList.Add($"--filename={Path.TrimEndingDirectorySeparator(initialDirectory)}/");
+                }
+                psi.ArgumentList.Add("--file-filter=Skua Scripts (*.cs) | *.cs");
+                psi.ArgumentList.Add("--file-filter=All Files | *");
+
+                using Process? p = Process.Start(psi);
+                if (p != null)
+                {
+                    string output = p.StandardOutput.ReadToEnd().Trim();
+                    p.WaitForExit();
+                    if (p.ExitCode == 0 && File.Exists(output))
+                        return output;
+                }
+            }
+            else if (File.Exists("/usr/bin/kdialog") || FindInPath("kdialog") != null)
+            {
+                ProcessStartInfo psi = new("kdialog")
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true
+                };
+                psi.ArgumentList.Add("--getopenfilename");
+                psi.ArgumentList.Add(!string.IsNullOrWhiteSpace(initialDirectory) && Directory.Exists(initialDirectory) ? initialDirectory : ".");
+                psi.ArgumentList.Add("*.cs|Skua Scripts (*.cs)");
+
+                using Process? p = Process.Start(psi);
+                if (p != null)
+                {
+                    string output = p.StandardOutput.ReadToEnd().Trim();
+                    p.WaitForExit();
+                    if (p.ExitCode == 0 && File.Exists(output))
+                        return output;
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private static string? FindInPath(string binaryName)
+    {
+        string? pathEnv = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrEmpty(pathEnv))
+            return null;
+
+        foreach (string dir in pathEnv.Split(':', StringSplitOptions.RemoveEmptyEntries))
+        {
+            try
+            {
+                string full = Path.Combine(dir.Trim(), binaryName);
+                if (File.Exists(full))
+                    return full;
+            }
+            catch { }
+        }
+        return null;
     }
 }

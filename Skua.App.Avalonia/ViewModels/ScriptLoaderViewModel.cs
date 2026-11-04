@@ -190,10 +190,14 @@ public partial class ScriptLoaderViewModel : BotControlViewModelBase
     [RelayCommand]
     private void EditScript(string? path = null)
     {
-        if (path is null && string.IsNullOrEmpty(ScriptManager.LoadedScript))
+        string? target = path ?? ScriptManager.LoadedScript;
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            _dialogService.ShowMessageBox("No script is currently loaded to edit. Please load a script first.", "No Script Loaded");
             return;
+        }
 
-        _processService.OpenVSC(path ?? ScriptManager.LoadedScript);
+        _processService.OpenVSC(target);
     }
 
     [RelayCommand]
