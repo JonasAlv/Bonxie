@@ -834,18 +834,13 @@ public partial class ArmyQueueViewModel : ObservableRecipient
     {
         try
         {
-            string exePath = SkuaExecutableLocator.ExecutablePath;
             string server = _settingsService.Get("LastServer", "Twilly");
 
-            ProcessStartInfo psi = new(exePath)
+            ProcessStartInfo psi = SkuaExecutableLocator.CreateProcessStartInfo(new[]
             {
-                WorkingDirectory = SkuaExecutableLocator.WorkingDirectory,
-                ArgumentList =
-                {
-                    "-s",
-                    server
-                }
-            };
+                "-s",
+                server
+            });
 
             if (!string.IsNullOrWhiteSpace(acc.Username))
             {

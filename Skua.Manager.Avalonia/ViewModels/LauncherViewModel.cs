@@ -93,12 +93,7 @@ public partial class LauncherViewModel : BotControlViewModelBase, IDisposable
 
             try
             {
-                ProcessStartInfo startInfo = new(SkuaExecutableLocator.ExecutablePath)
-                {
-                    WorkingDirectory = SkuaExecutableLocator.WorkingDirectory
-                };
-                foreach (string arg in args)
-                    startInfo.ArgumentList.Add(arg);
+                ProcessStartInfo startInfo = SkuaExecutableLocator.CreateProcessStartInfo(args);
 
                 Process? proc = Process.Start(startInfo);
                 if (proc != null)
@@ -198,20 +193,6 @@ public partial class LauncherViewModel : BotControlViewModelBase, IDisposable
                 StrongReferenceMessenger.Default.Unregister<UpdateStartedMessage>(this);
                 StrongReferenceMessenger.Default.Unregister<AddProcessMessage>(this);
 
-                // Close any remaining processes, killing those that don't exit in time
-                List<ProcessInfo> remaining = SkuaProcesses.ToList();
-                try
-                {
-                    Task.Run(() => Task.WhenAll(remaining.Select(async procInfo =>
-                    {
-                        try
-                        {
-                            await ProcessCloser.CloseAsync(procInfo.Process, ProcessCloser.DefaultTimeout);
-                        }
-                        catch { }
-                    }))).Wait(ProcessCloser.DefaultTimeout + TimeSpan.FromSeconds(2));
-                }
-                catch { }
                 SkuaProcesses?.Clear();
             }
             _disposed = true;

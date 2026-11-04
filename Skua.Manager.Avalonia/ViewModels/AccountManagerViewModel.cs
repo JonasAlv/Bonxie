@@ -440,15 +440,11 @@ public sealed partial class AccountManagerViewModel : BotControlViewModelBase
     {
         try
         {
-            ProcessStartInfo psi = new(_exePath)
+            ProcessStartInfo psi = SkuaExecutableLocator.CreateProcessStartInfo(new[]
             {
-                ArgumentList =
-                {
-                    "-s",
-                    SelectedServer?.Name ?? "Twilly"
-                },
-                WorkingDirectory = SkuaExecutableLocator.WorkingDirectory
-            };
+                "-s",
+                SelectedServer?.Name ?? "Twilly"
+            });
 
             if (!string.IsNullOrWhiteSpace(username))
             {

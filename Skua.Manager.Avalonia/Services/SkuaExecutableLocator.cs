@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using Skua.Core.Models;
@@ -11,6 +13,53 @@ internal static class SkuaExecutableLocator
 
     public static string WorkingDirectory =>
         Path.GetDirectoryName(ExecutablePath) ?? AppContext.BaseDirectory;
+
+    public static ProcessStartInfo CreateProcessStartInfo(IEnumerable<string>? args = null)
+    {
+        ProcessStartInfo psi = new(ExecutablePath)
+        {
+            WorkingDirectory = WorkingDirectory
+        };
+        if (args != null)
+        {
+            foreach (string arg in args)
+                psi.ArgumentList.Add(arg);
+        }
+
+        SanitizeAppImageEnvironment(psi);
+        return psi;
+    }
+
+    public static void SanitizeAppImageEnvironment(ProcessStartInfo psi)
+    {
+        string? appDir = Environment.GetEnvironmentVariable("APPDIR");
+
+        // Detach AppImage-specific environment variables so a child process/AppImage
+        // manages its own lifecycle and mount without depending on this manager's mount.
+        psi.Environment.Remove("APPDIR");
+        psi.Environment.Remove("APPIMAGE");
+        psi.Environment.Remove("ARGV0");
+        psi.Environment.Remove("OWD");
+
+        if (!string.IsNullOrEmpty(appDir))
+        {
+            string? ldLibPath = Environment.GetEnvironmentVariable("LD_LIBRARY_PATH");
+            if (!string.IsNullOrEmpty(ldLibPath))
+            {
+                var cleanedLd = ldLibPath.Split(':')
+                    .Where(p => !string.IsNullOrEmpty(p) && !p.StartsWith(appDir, StringComparison.Ordinal));
+                psi.Environment["LD_LIBRARY_PATH"] = string.Join(':', cleanedLd);
+            }
+
+            string? pathEnv = Environment.GetEnvironmentVariable("PATH");
+            if (!string.IsNullOrEmpty(pathEnv))
+            {
+                var cleanedPath = pathEnv.Split(':')
+                    .Where(p => !string.IsNullOrEmpty(p) && !p.StartsWith(appDir, StringComparison.Ordinal));
+                psi.Environment["PATH"] = string.Join(':', cleanedPath);
+            }
+        }
+    }
 
     private static string? TryFindInDirectory(string dir, string? excludePath = null)
     {
