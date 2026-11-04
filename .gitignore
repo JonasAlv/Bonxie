@@ -412,9 +412,8 @@ skua_global_*.txt
 # Critical: Ensure pre-built Flash SWF is tracked (overrides [Bb]in/ rule)
 !Skua.AS3/skua/bin/
 !Skua.AS3/skua/bin/skua.swf
+!Skua.App.Avalonia/skua.swf
 
-
-*.sln
 
 # Game player downloaded by the Skua.App.Avalonia build
 /player/
