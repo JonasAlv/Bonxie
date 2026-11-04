@@ -112,7 +112,7 @@ Comment=Cross-platform AQW client with advanced scripting and multi-account tabs
 Exec=AppRun %U
 Icon=bonxie
 Terminal=false
-Categories=Game;Utility;
+Categories=Game;RolePlaying;
 StartupWMClass=Bonxie
 EOF
 cp "$skua_appdir/bonxie.desktop" "$skua_appdir/usr/share/applications/bonxie.desktop"
@@ -126,7 +126,7 @@ Comment=Account manager, script updater, and launcher for Bonxie
 Exec=AppRun %U
 Icon=bonxie-manager
 Terminal=false
-Categories=Game;Utility;Settings;
+Categories=Game;
 StartupWMClass=Bonxie-Manager
 EOF
 cp "$mgr_appdir/bonxie-manager.desktop" "$mgr_appdir/usr/share/applications/bonxie-manager.desktop"
