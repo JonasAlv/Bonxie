@@ -88,6 +88,12 @@ public partial class ArmyQueueMemberViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void OpenScriptsFolder()
+    {
+        Ioc.Default.GetService<IProcessService>()?.OpenFolder(ClientFileSources.SkuaScriptsDIR);
+    }
+
+    [RelayCommand]
     private void ClearScript()
     {
         ScriptPath = null;
@@ -133,6 +139,12 @@ public partial class ArmyQueueStepViewModel : ObservableObject
         {
             StepScriptPath = script;
         }
+    }
+
+    [RelayCommand]
+    private void OpenScriptsFolder()
+    {
+        Ioc.Default.GetService<IProcessService>()?.OpenFolder(ClientFileSources.SkuaScriptsDIR);
     }
 
     [RelayCommand]
