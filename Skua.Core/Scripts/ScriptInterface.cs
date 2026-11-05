@@ -631,12 +631,13 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
                             string addItems = Convert.ToString(data["items"]);
                             Dictionary<int, dynamic> addedItem = JsonConvert.DeserializeObject<Dictionary<int, dynamic>>(addItems)!;
                             int itemID = addedItem.Keys.First()!;
-                            ItemBase invItem = Inventory.GetItem(itemID) ?? TempInv.GetItem(itemID)!;
+                            ItemBase? invItem = Inventory.GetItem(itemID) ?? TempInv.GetItem(itemID);
                             Stats.GetSpace();
                             if (invItem is null)
                             {
-                                invItem = Bank.GetItem(itemID)!;
-                                Messenger.Send<ItemAddedToBankMessage, int>(new(invItem, invItem.Quantity), (int)MessageChannels.GameEvents);
+                                invItem = Bank.GetItem(itemID);
+                                if (invItem is not null)
+                                    Messenger.Send<ItemAddedToBankMessage, int>(new(invItem, invItem.Quantity), (int)MessageChannels.GameEvents);
                                 break;
                             }
                             if (!invItem.Temp)
@@ -711,11 +712,20 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
                             break;
                     }
                 }
-                Messenger.Send<ExtensionPacketMessage, int>(new(packet), (int)MessageChannels.GameEvents);
+                try
+                {
+                    Messenger.Send<ExtensionPacketMessage, int>(new(packet), (int)MessageChannels.GameEvents);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[ExtensionPacket] Script handler exception: {ex.Message}");
+                }
                 break;
 
             case "packet":
                 string[] parts = ((string)args[0]).Split('%', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 3)
+                    break;
                 switch (parts[2])
                 {
                     case "eLO":
@@ -737,17 +747,24 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
                         break;
 
                     case "moveToCell":
-                        Messenger.Send<CellChangedMessage, int>(new(Map.Name, parts[4], parts[5]), (int)MessageChannels.GameEvents);
+                        if (parts.Length >= 6)
+                            Messenger.Send<CellChangedMessage, int>(new(Map.Name, parts[4], parts[5]), (int)MessageChannels.GameEvents);
                         break;
 
                     case "buyItem":
-                        Stats.GetSpace();
-                        Messenger.Send<TryBuyItemMessage, int>(new(int.Parse(parts[5]), int.Parse(parts[4]), int.Parse(parts[6])), (int)MessageChannels.GameEvents);
+                        if (parts.Length >= 7 && int.TryParse(parts[5], out int sId) && int.TryParse(parts[4], out int iId) && int.TryParse(parts[6], out int sItemId))
+                        {
+                            Stats.GetSpace();
+                            Messenger.Send<TryBuyItemMessage, int>(new(sId, iId, sItemId), (int)MessageChannels.GameEvents);
+                        }
                         break;
 
                     case "acceptQuest":
-                        Stats.QuestsAccepted++;
-                        Messenger.Send<QuestAcceptedMessage, int>(new(int.Parse(parts[4])), (int)MessageChannels.GameEvents);
+                        if (parts.Length >= 5 && int.TryParse(parts[4], out int qId))
+                        {
+                            Stats.QuestsAccepted++;
+                            Messenger.Send<QuestAcceptedMessage, int>(new(qId), (int)MessageChannels.GameEvents);
+                        }
                         break;
 
                     case "cmd":
