@@ -58,38 +58,35 @@
       To try a local build of the player instead, pass -p:SkuaPlayerLocal=<folder with Mugetsu>.
     -->
     <PropertyGroup>
-        <!-- Files named as the skua-mugetsu "Build Mugetsu" workflow's draft release names them. -->
-        <SkuaPlayerArchive>Mugetsu-$(SkuaPlayerVersion)-$(SkuaPlayerOs).tar.gz</SkuaPlayerArchive>
         <SkuaPlayerExe>Mugetsu</SkuaPlayerExe>
-        <SkuaPlayerUrl>https://github.com/retr0gr4d3/skua-mugetsu/releases/download/v$(SkuaPlayerVersion)/$(SkuaPlayerArchive)</SkuaPlayerUrl>
         <SkuaPlayerCache>$(MSBuildThisFileDirectory)..\player\$(SkuaPlayerVersion)-$(SkuaPlayerOs)</SkuaPlayerCache>
         <SkuaPlayerDir Condition="'$(SkuaPlayerLocal)' != ''">$(SkuaPlayerLocal)</SkuaPlayerDir>
         <SkuaPlayerDir Condition="'$(SkuaPlayerLocal)' == ''">$(SkuaPlayerCache)\Mugetsu</SkuaPlayerDir>
 
         <!-- The x86-64-v2 build for CPUs without AVX2, copied to player-x86-64-v2/; Bonxie picks it at startup when
              the CPU lacks AVX2. Releases before it existed don't have it: the build then warns and ships only player/. -->
-        <SkuaPlayerAvxArchive>Mugetsu-$(SkuaPlayerVersion)-$(SkuaPlayerOs)-x86-64-v2.tar.gz</SkuaPlayerAvxArchive>
-        <SkuaPlayerAvxUrl>https://github.com/retr0gr4d3/skua-mugetsu/releases/download/v$(SkuaPlayerVersion)/$(SkuaPlayerAvxArchive)</SkuaPlayerAvxUrl>
         <SkuaPlayerAvxCache>$(SkuaPlayerCache)-x86-64-v2</SkuaPlayerAvxCache>
+        <SkuaPlayerAvxDir Condition="'$(SkuaPlayerAvxDir)' == '' And '$(SkuaPlayerV2Local)' != ''">$(SkuaPlayerV2Local)</SkuaPlayerAvxDir>
         <SkuaPlayerAvxDir Condition="'$(SkuaPlayerAvxDir)' == ''">$(SkuaPlayerAvxCache)\Mugetsu</SkuaPlayerAvxDir>
     </PropertyGroup>
 
     <Target Name="DownloadSkuaPlayer" Condition="'$(SkuaPlayerLocal)' == '' And !Exists('$(SkuaPlayerDir)\$(SkuaPlayerExe)')">
-        <DownloadFile SourceUrl="$(SkuaPlayerUrl)" DestinationFolder="$(SkuaPlayerCache)" />
-        <!-- A tar archive keeps the player's executable mark. -->
-        <Exec Command="tar -xzf &quot;$(SkuaPlayerArchive)&quot;" WorkingDirectory="$(SkuaPlayerCache)" />
+        <MakeDir Directories="$(SkuaPlayerCache)" />
+        <DownloadFile SourceUrl="https://github.com/retr0gr4d3/skua-mugetsu/releases/download/v$(SkuaPlayerVersion)/linux.tar.gz" DestinationFolder="$(SkuaPlayerCache)" DestinationFileName="player.tar.gz" />
+        <Exec Command="tar -xzf player.tar.gz" WorkingDirectory="$(SkuaPlayerCache)" />
     </Target>
 
-    <Target Name="DownloadSkuaPlayerAvx" Condition="'$(SkuaPlayerLocal)' == '' And !Exists('$(SkuaPlayerAvxDir)\$(SkuaPlayerExe)')">
-        <DownloadFile SourceUrl="$(SkuaPlayerAvxUrl)" DestinationFolder="$(SkuaPlayerAvxCache)" ContinueOnError="WarnAndContinue" />
-        <Exec Condition="Exists('$(SkuaPlayerAvxCache)\$(SkuaPlayerAvxArchive)')" Command="tar -xzf &quot;$(SkuaPlayerAvxArchive)&quot;" WorkingDirectory="$(SkuaPlayerAvxCache)" />
+    <Target Name="DownloadSkuaPlayerAvx" Condition="'$(SkuaPlayerLocal)' == '' And '$(SkuaPlayerV2Local)' == '' And '$(SkuaPlayerAvxDir)' == '$(SkuaPlayerAvxCache)\Mugetsu' And !Exists('$(SkuaPlayerAvxDir)\$(SkuaPlayerExe)')">
+        <MakeDir Directories="$(SkuaPlayerAvxCache)" />
+        <DownloadFile SourceUrl="https://github.com/retr0gr4d3/skua-mugetsu/releases/download/v$(SkuaPlayerVersion)/linux-x86-64-v2.tar.gz" DestinationFolder="$(SkuaPlayerAvxCache)" DestinationFileName="player-v2.tar.gz" />
+        <Exec Command="tar -xzf player-v2.tar.gz" WorkingDirectory="$(SkuaPlayerAvxCache)" />
     </Target>
 
     <Target Name="AddSkuaPlayer" BeforeTargets="AssignTargetPaths" DependsOnTargets="DownloadSkuaPlayer;DownloadSkuaPlayerAvx">
         <ItemGroup>
             <_SkuaPlayerFile Include="$(SkuaPlayerDir)\**" />
             <None Include="@(_SkuaPlayerFile)" Link="player\%(_SkuaPlayerFile.RecursiveDir)%(_SkuaPlayerFile.Filename)%(_SkuaPlayerFile.Extension)" CopyToOutputDirectory="PreserveNewest" />
-            <_SkuaPlayerAvxFile Condition="'$(SkuaPlayerLocal)' == '' And Exists('$(SkuaPlayerAvxDir)')" Include="$(SkuaPlayerAvxDir)\**" />
+            <_SkuaPlayerAvxFile Condition="Exists('$(SkuaPlayerAvxDir)')" Include="$(SkuaPlayerAvxDir)\**" />
             <None Include="@(_SkuaPlayerAvxFile)" Link="player-x86-64-v2\%(_SkuaPlayerAvxFile.RecursiveDir)%(_SkuaPlayerAvxFile.Filename)%(_SkuaPlayerAvxFile.Extension)" CopyToOutputDirectory="PreserveNewest" />
         </ItemGroup>
     </Target>

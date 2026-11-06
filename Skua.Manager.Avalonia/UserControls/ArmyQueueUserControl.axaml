@@ -528,7 +528,7 @@
                     <!-- Search & Quick select -->
                     <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
                         <TextBox Grid.Column="0"
-                                 Text="{Binding AccountPickerSearchText}"
+                                 Text="{Binding AccountPickerSearchText, UpdateSourceTrigger=PropertyChanged}"
                                  Watermark="Search accounts..."
                                  FontSize="11"
                                  Height="28" />
