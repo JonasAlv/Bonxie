@@ -137,6 +137,7 @@ set -e
 APPDIR="$(dirname "$(readlink -f "${0}")")"
 export PATH="$APPDIR/usr/bin:$APPDIR/current:$PATH"
 export LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/current:$APPDIR/current/runtimes/linux-x64/native:${LD_LIBRARY_PATH:-}"
+export DOTNET_ROOT="$APPDIR/current"
 exec "$APPDIR/current/Bonxie" "$@"
 EOF
 chmod +x "$skua_appdir/AppRun"
@@ -148,6 +149,7 @@ set -e
 APPDIR="$(dirname "$(readlink -f "${0}")")"
 export PATH="$APPDIR/usr/bin:$APPDIR/current:$PATH"
 export LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/current:$APPDIR/current/runtimes/linux-x64/native:${LD_LIBRARY_PATH:-}"
+export DOTNET_ROOT="$APPDIR/current"
 exec "$APPDIR/current/Bonxie.Manager" "$@"
 EOF
 chmod +x "$mgr_appdir/AppRun"
